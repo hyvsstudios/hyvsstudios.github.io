@@ -121,6 +121,8 @@ table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width
 .grid td input[type=checkbox]{-webkit-appearance:none;appearance:none;box-sizing:border-box;width:18px;height:18px;margin:0;border:2px solid var(--muted);border-radius:4px;background:transparent;position:relative;cursor:pointer;vertical-align:middle;flex:none}
 .grid td input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
 .grid td input[type=checkbox]:checked::after{content:"";position:absolute;left:4px;top:0;width:4px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.grid td input[type=checkbox]:indeterminate{background:var(--accent);border-color:var(--accent)}
+.grid td input[type=checkbox]:indeterminate::after{content:"";position:absolute;left:2px;top:6px;width:10px;height:2px;background:#fff}
 .grid td input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .grid tr.frow td{position:sticky;top:33px;z-index:3;background:var(--chip);border-bottom:1px solid var(--line);padding:4px 6px}
 .grid tr.frow td.s1,.grid tr.frow td.s2,.grid tr.frow td.s3{z-index:5}
@@ -443,7 +445,7 @@ function filterRow(names){
   const F=S.filters, any=Object.values(F).some(Boolean);
   const sel=(k,opts)=>`<select data-f="${k}" class="${F[k]?"on":""}" aria-label="Filter ${k}"><option value="">All</option>${opts.map(([v,l])=>`<option value="${esc(v)}" ${F[k]===v?"selected":""}>${esc(l)}</option>`).join("")}</select>`;
   const txt=(k,ph)=>`<input type="text" data-f="${k}" class="${F[k]?"on":""}" placeholder="${ph}" value="${esc(F[k]||"")}">`;
-  const yn=k=>sel(k,[["y","Yes"],["n","No"]]);
+  const yn=k=>`<div style="display:flex;gap:6px;align-items:center">${sel(k,[["y","Yes"],["n","No"]])}<input type="checkbox" data-all="${k}" title="Tick / untick this for ALL tasks currently shown (every page)" aria-label="Tick all"></div>`;
   return `<tr class="frow"><td class="s1">${any?`<button class="pen" data-clearf title="Clear all filters">✕</button>`:""}</td><td class="s2"></td><td class="s3">${txt("title","Filter title…")}</td>
     <td class="c-list">${sel("list",names.map(n=>[n,n]))}</td><td class="c-rem">${sel("rem",[["has","Has a reminder"],["none","No reminder"]])}</td>
     <td class="c-rep">${sel("rep",REP_OPTS)}</td><td>${yn("imp")}</td><td>${yn("so")}</td><td>${yn("sc")}</td>
@@ -481,6 +483,15 @@ function bindGrid(app){
   const applyF=(k,v,keep)=>{ if(v) S.filters[k]=v; else delete S.filters[k]; S.page=0; render(); if(keep){ const el=document.querySelector(`[data-f="${k}"]`); if(el){ el.focus(); try{ el.setSelectionRange(keep,keep) }catch(e){} } } };
   tbl.querySelectorAll("select[data-f]").forEach(el=>el.onchange=()=>applyF(el.dataset.f,el.value));
   tbl.querySelectorAll("input[data-f]").forEach(el=>el.oninput=()=>{ clearTimeout(bindGrid.ft); const k=el.dataset.f,v=el.value,pos=el.selectionStart||v.length; bindGrid.ft=setTimeout(()=>applyF(k,v,pos),250); });
+  const FIELD={imp:["Important","TRUE","FALSE"],so:["SkipOverdue","TRUE",""],sc:["SkipCompleted","TRUE",""]};
+  const shown=visibleRows();
+  tbl.querySelectorAll("input[data-all]").forEach(el=>{
+    const [fld,on]=FIELD[el.dataset.all]; const n=shown.filter(r=>r.f[fld]&&truthy(r.f[fld])).length;
+    el.checked=shown.length>0&&n===shown.length; el.indeterminate=n>0&&n<shown.length; el.disabled=!shown.length;
+    el.onchange=()=>{ const [fl,yes,no]=FIELD[el.dataset.all]; const v=el.checked?yes:no;
+      shown.forEach(r=>{ r.f[fl]=v; }); setDirty(true); render();
+      toast((el.checked?"Ticked":"Cleared")+" for "+shown.length.toLocaleString()+" task"+(shown.length===1?"":"s")); };
+  });
   const cf=tbl.querySelector("[data-clearf]"); if(cf) cf.onclick=()=>{ S.filters={}; S.page=0; render(); };
   tbl.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{ const c=th.dataset.sort; if(S.sort.col===c) S.sort.dir*=-1; else S.sort={col:c,dir:1}; S.page=0; render(); });
   tbl.addEventListener("click",e=>{
