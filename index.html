@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My To-Do · Web editor</title>
+<style>
+:root{
+  --bg:#f5f7fb; --panel:#ffffff; --ink:#1b2430; --muted:#64708a; --line:#e2e7f0;
+  --accent:#2f7bf0; --accent-ink:#ffffff; --accent-soft:#e6f0ff; --danger:#d64545; --warn:#b4660a; --ok:#14866d;
+  --chip:#eef2f9; --shadow:0 1px 2px rgba(20,30,50,.06),0 6px 24px rgba(20,30,50,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f141c; --panel:#171e29; --ink:#e8edf6; --muted:#98a4bb; --line:#2a3445;
+    --accent:#5b9bff; --accent-ink:#06111f; --accent-soft:#1c2c47; --danger:#ff7a7a; --warn:#f0b35a; --ok:#4fd1b0;
+    --chip:#222c3b; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --panel:#171e29; --ink:#e8edf6; --muted:#98a4bb; --line:#2a3445;
+  --accent:#5b9bff; --accent-ink:#06111f; --accent-soft:#1c2c47; --danger:#ff7a7a; --warn:#f0b35a; --ok:#4fd1b0;
+  --chip:#222c3b; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+.top{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:10px 16px;flex-wrap:wrap}
+.brand{font-weight:700;font-size:17px;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.brand i{width:22px;height:22px;border-radius:7px;background:var(--accent);display:inline-block;position:relative}
+.brand i::after{content:"";position:absolute;left:6px;top:4px;width:6px;height:10px;border:solid var(--accent-ink);border-width:0 2.5px 2.5px 0;transform:rotate(40deg)}
+.grow{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);padding:7px 13px;border-radius:10px;font-weight:600}
+.btn:hover{background:var(--chip)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{color:var(--danger)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sm{padding:4px 9px;font-size:13px;border-radius:8px}
+#status{color:var(--muted);font-size:13px}
+#status.dirty{color:var(--warn);font-weight:600}
+.wrap{display:grid;grid-template-columns:250px 1fr;gap:18px;max-width:1180px;margin:18px auto;padding:0 16px}
+@media (max-width:820px){.wrap{grid-template-columns:1fr}}
+.nav{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;height:fit-content;box-shadow:var(--shadow)}
+.nav h4{margin:10px 10px 4px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
+.nav button{display:flex;width:100%;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:none;border:0;padding:8px 10px;border-radius:9px}
+.nav button:hover{background:var(--chip)}
+.nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.nav .n{font-size:12px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:8px;background:var(--accent)}
+.main{min-width:0}
+.hero{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.hero h2{margin:0;font-size:22px}
+.search{flex:1;min-width:160px;max-width:340px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.task{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--line)}
+.task:last-child{border-bottom:0}
+.task:hover{background:color-mix(in srgb,var(--chip) 55%,transparent)}
+.task .body{flex:1;min-width:0;cursor:pointer}
+.task .t{font-weight:600;overflow-wrap:anywhere}
+.task.done .t{text-decoration:line-through;color:var(--muted)}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.chip{font-size:12px;background:var(--chip);color:var(--muted);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.chip.over{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger);font-weight:600}
+.chip.flag{color:var(--ok)}
+.chk{width:20px;height:20px;margin-top:2px;accent-color:var(--accent)}
+.star{background:none;border:0;font-size:18px;color:var(--muted);padding:0 4px}
+.star.on{color:#f5a623}
+.empty{padding:46px 20px;text-align:center;color:var(--muted)}
+.drop{margin:40px auto;max-width:640px;border:2px dashed var(--line);border-radius:18px;padding:36px 24px;text-align:center;background:var(--panel)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop h2{margin:0 0 8px}
+.drop ol{text-align:left;display:inline-block;color:var(--muted);margin:12px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+dialog{border:0;border-radius:16px;padding:0;max-width:640px;width:calc(100% - 24px);background:var(--panel);color:var(--ink);box-shadow:0 20px 70px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(10,15,25,.5)}
+.dh{padding:16px 20px 6px;font-size:18px;font-weight:700}
+.db{padding:6px 20px 14px;max-height:68vh;overflow:auto}
+.df{padding:12px 20px 16px;display:flex;gap:8px;justify-content:flex-end;border-top:1px solid var(--line);flex-wrap:wrap}
+label.f{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+.in,select.in,textarea.in{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+textarea.in{min-height:84px;resize:vertical}
+.cb{display:flex;align-items:center;gap:8px;margin:7px 0}
+.cb input{width:18px;height:18px;accent-color:var(--accent)}
+.hint{font-size:12.5px;color:var(--muted);margin:3px 0 0}
+.days{display:flex;gap:6px;flex-wrap:wrap}
+.days label{border:1px solid var(--line);border-radius:8px;padding:4px 10px;cursor:pointer;user-select:none}
+.days input{display:none}
+.days input:checked+span{color:var(--accent);font-weight:700}
+.days label:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.sub{display:flex;gap:8px;align-items:center;margin:5px 0}
+.sub .in{flex:1}
+.pill{display:inline-block;background:var(--accent-soft);color:var(--accent);border-radius:99px;padding:2px 10px;font-size:12px;font-weight:700}
+.zlist{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:9px;margin-top:6px}
+.zlist button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 10px}
+.zlist button:hover{background:var(--chip)}
+.zlist button.sel{color:var(--accent);font-weight:700}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(30px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90vw}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.warnbox{background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:10px;padding:9px 12px;margin:10px 0;font-size:13.5px}
+.small{font-size:12.5px;color:var(--muted)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand"><i></i>My To-Do · Web editor</div>
+  <button class="btn" id="bOpen">Open CSV…</button>
+  <button class="btn" id="bLink">From link…</button>
+  <button class="btn" id="bNew">New file</button>
+  <span class="grow"></span>
+  <span id="status"></span>
+  <button class="btn" id="bCheck" disabled>Check file</button>
+  <button class="btn primary" id="bSave" disabled>Save</button>
+  <button class="btn" id="bTheme" title="Light / dark">◐</button>
+</div>
+<input type="file" id="fileIn" accept=".csv,text/csv,text/plain" hidden>
+
+<div id="app"></div>
+<dialog id="dlg"></dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ constants */
+const PREFIX = "mytodo_";
+const CORE = ["List","Title","Notes","Completed","Reminders","Important","MyDay","RecurrenceType","Interval","DailyMode","WeeklyDays","MonthlyMode","YearlyMode","DayOfMonth","Month","WeekOrdinal","DayOfWeek","RepeatEnds","RepeatEndDate","RepeatEndCount","ReminderSound","HomeList"];
+const OPTIONAL = ["ReminderZone","SkipOverdue","SkipCompleted"];
+const SETTINGS_LIST = "~MyToDo settings~";
+const LIM = { title:200, notes:5000, reminders:12, subtasks:10, subTitle:200, endCount:100, tasks:15000, lists:100 };
+const MAXINT = { DAILY:90, WEEKLY:36, MONTHLY:36, YEARLY:10 };
+const DOW = [["MO","Mon"],["TU","Tue"],["WE","Wed"],["TH","Thu"],["FR","Fri"],["SA","Sat"],["SU","Sun"]];
+const ORD = [["FIRST","First"],["SECOND","Second"],["THIRD","Third"],["FOURTH","Fourth"],["LAST","Last"]];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTHLY_MODES = [["DAY_OF_MONTH","On a day of the month"],["NTH_WEEKDAY","On the first/second/… weekday"],["FIRST_WORKDAY","First weekday (Mon–Fri)"],["LAST_WORKDAY","Last weekday (Mon–Fri)"],["LAST_DAY","Last day of the month"]];
+const YEARLY_MODES = [["SPECIFIC_DATE","On a date"],["NTH_WEEKDAY","On the first/second/… weekday of a month"],["FIRST_DAY","First day of a month"],["LAST_DAY","Last day of a month"],["FIRST_WORKDAY","First weekday (Mon–Fri) of a month"],["LAST_WORKDAY","Last weekday (Mon–Fri) of a month"]];
+
+/* ------------------------------------------------------------------ state */
+const $ = s => document.querySelector(s);
+const S = { rows:[], settings:[], fileName:"", handle:null, dirty:false, view:{kind:"all"}, q:"", nextId:1, loaded:false, hadPrefix:true };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("on"),2800)}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+
+/* ------------------------------------------------------------------ CSV in / out */
+function parseGrid(text){
+  const rows=[];let row=[],f="",q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false } else f+=c }
+    else if(c==='"') q=true;
+    else if(c===","){row.push(f);f=""}
+    else if(c==="\r"){}
+    else if(c==="\n"){row.push(f);f="";rows.push(row);row=[]}
+    else f+=c;
+  }
+  if(f!==""||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+const csvEsc = s => /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+const truthy = v => /^(true|1)$/i.test(String(v||"").trim());
+
+function loadCsvText(text, name, handle){
+  text = text.replace(/^\uFEFF/,"");
+  if (text.indexOf("\u0000")>=0) throw new Error("That file isn't a text CSV file.");
+  let grid = parseGrid(text);
+  // Excel in some regions saves with semicolons; read it, but always write commas.
+  if (grid.length && grid[0].length===1 && grid[0][0].includes(";")) grid = text.split(/\r?\n/).filter(l=>l.length).map(l=>l.split(";"));
+  if (!grid.length) throw new Error("That file is empty.");
+  const rawHead = grid[0].map(h=>h.trim());
+  const hadPrefix = rawHead.filter(h=>h).every(h=>h.toLowerCase().startsWith(PREFIX));
+  const names = rawHead.map(h=>h.toLowerCase().startsWith(PREFIX)?h.slice(PREFIX.length):h);
+  const idx = n => names.findIndex(x=>x.toLowerCase()===n.toLowerCase());
+  if (idx("List")<0 || idx("Title")<0) throw new Error("This doesn't look like a My To-Do export — the first line must be the column names (mytodo_List, mytodo_Title, …). Export tasks from the app and open that file.");
+  const firstSub = names.findIndex(n=>/^subtask\d*$/i.test(n)); // Subtask1
+  const rows=[], settings=[], problems=[];
+  for (let r=1;r<grid.length;r++){
+    const cols=grid[r];
+    if (cols.every(c=>!String(c).trim())) continue;
+    const get = n => { const i=idx(n); return i<0 ? "" : (cols[i] ?? "").trim(); };
+    const getRaw = n => { const i=idx(n); return i<0 ? "" : (cols[i] ?? ""); };
+    if ((cols[idx("List")]||"").trim()===SETTINGS_LIST){ settings.push([ (cols[idx("Title")]||"").trim(), cols[idx("Notes")]||"" ]); continue; }
+    const f={};
+    CORE.concat(OPTIONAL).forEach(n=>{ f[n]=getRaw(n); });
+    ["List","Completed","Important","MyDay","RecurrenceType","Interval","DailyMode","WeeklyDays","MonthlyMode","YearlyMode","DayOfMonth","Month","WeekOrdinal","DayOfWeek","RepeatEnds","RepeatEndDate","RepeatEndCount","HomeList","ReminderZone","SkipOverdue","SkipCompleted","Reminders"].forEach(n=>f[n]=(f[n]||"").trim());
+    const subs=[];
+    if (firstSub>=0) for (let i=firstSub;i<cols.length;i+=2){ const t=(cols[i]||"").trim(); if(t) subs.push({t, d:truthy(cols[i+1])}); }
+    rows.push({ id:S.nextId++, f, subs });
+  }
+  S.rows=rows; S.settings=settings; S.fileName=name||"mytodo.csv"; S.handle=handle||null; S.loaded=true; S.hadPrefix=hadPrefix;
+  S.view={kind:"all"}; S.q=""; setDirty(false);
+  render(); enableButtons();
+  toast(`Opened ${rows.length} task${rows.length===1?"":"s"}${settings.length?` and ${settings.length} app settings`:""}.`);
+  if(!hadPrefix) toast("Heads up: column names had no “mytodo_” prefix — it will be added when you save.");
+}
+
+function buildCsv(){
+  const anyOpt = S.rows.some(r=>r.f.ReminderZone||truthy(r.f.SkipOverdue)||truthy(r.f.SkipCompleted));
+  const subCols = Math.min(LIM.subtasks, S.rows.reduce((m,r)=>Math.max(m,r.subs.length),0));
+  const head = CORE.concat(anyOpt?OPTIONAL:[]);
+  for(let i=1;i<=subCols;i++){head.push("Subtask"+i,"Subtask"+i+"Done")}
+  const lines=[head.map(h=>csvEsc(PREFIX+h)).join(",")];
+  S.rows.forEach(r=>{
+    const f=r.f;
+    const vals=CORE.map(n=>f[n]??"").concat(anyOpt?OPTIONAL.map(n=>f[n]??""):[]);
+    for(let i=0;i<subCols;i++){const s=r.subs[i]; vals.push(s?s.t:"", s?(s.d?"TRUE":"FALSE"):"")}
+    lines.push(vals.map(v=>csvEsc(String(v))).join(","));
+  });
+  S.settings.forEach(([k,v])=>{
+    const vals=new Array(head.length).fill(""); vals[0]=SETTINGS_LIST; vals[1]=k; vals[2]=v;
+    lines.push(vals.map(x=>csvEsc(String(x))).join(","));
+  });
+  return lines.join("\r\n")+"\r\n";
+}
+
+/* ------------------------------------------------------------------ derived helpers */
+const isArchiveHeading = l => /^(overdue|completed)$/i.test((l||"").trim());
+const effList = r => isArchiveHeading(r.f.List) ? (r.f.HomeList||"Unassigned") : (r.f.List||"Unassigned");
+const isDone = r => truthy(r.f.Completed) || /^completed$/i.test(r.f.List.trim());
+const isOverdueRow = r => /^overdue$/i.test(r.f.List.trim());
+const remindersOf = r => r.f.Reminders ? r.f.Reminders.split(";").map(s=>s.trim()).filter(Boolean) : [];
+const isRepeat = r => (r.f.RecurrenceType||"NONE").toUpperCase()!=="NONE" && r.f.RecurrenceType!=="";
+function fmtWhen(s){ // "yyyy-MM-dd HH:mm"
+  const m=/^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d)$/.exec(s); if(!m) return s;
+  const d=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]);
+  return new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(d);
+}
+function nextReminder(r){
+  const list=remindersOf(r).sort(); if(!list.length) return null;
+  const now=nowWall(); const up=list.find(x=>x>=now);
+  return {text:up||list[list.length-1], upcoming:!!up};
+}
+function nowWall(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function repeatText(r){
+  const t=(r.f.RecurrenceType||"NONE").toUpperCase(); if(t==="NONE") return "";
+  const n=parseInt(r.f.Interval||"1",10)||1;
+  const unit={DAILY:"day",WEEKLY:"week",MONTHLY:"month",YEARLY:"year"}[t]||"";
+  let s = n===1 ? `Every ${unit}` : `Every ${n} ${unit}s`;
+  if(t==="DAILY" && r.f.DailyMode==="EVERY_WEEKDAY") s="Every weekday";
+  if(t==="WEEKLY" && r.f.WeeklyDays) s+=` (${r.f.WeeklyDays.split(",").map(x=>x.trim()).join(", ")})`;
+  return s;
+}
+function lists(){
+  const m=new Map();
+  S.rows.forEach(r=>{ const l=effList(r); if(!m.has(l)) m.set(l,{name:l,open:0,all:0}); const o=m.get(l); o.all++; if(!isDone(r)) o.open++; });
+  return [...m.values()].sort((a,b)=>a.name.localeCompare(b.name));
+}
+const hue = name => { let h=0; for(const c of name) h=(h*31+c.charCodeAt(0))%360; return `hsl(${h} 62% 52%)`; };
+
+function visibleRows(){
+  const v=S.view, q=S.q.trim().toLowerCase();
+  let rows=S.rows.filter(r=>{
+    switch(v.kind){
+      case "all": return !isDone(r) && !isOverdueRow(r);
+      case "overdue": return isOverdueRow(r);
+      case "done": return isDone(r);
+      case "important": return truthy(r.f.Important) && !isDone(r);
+      case "myday": return truthy(r.f.MyDay) && !isDone(r);
+      case "list": return effList(r)===v.name && !isDone(r);
+    }
+    return true;
+  });
+  if(q) rows=rows.filter(r=>(r.f.Title+" "+r.f.Notes+" "+effList(r)+" "+r.subs.map(s=>s.t).join(" ")).toLowerCase().includes(q));
+  return rows.sort((a,b)=>{
+    const na=(nextReminder(a)||{}).text||"9999", nb=(nextReminder(b)||{}).text||"9999";
+    return na<nb?-1:na>nb?1:a.f.Title.localeCompare(b.f.Title);
+  });
+}
+
+/* ------------------------------------------------------------------ rendering */
+function setDirty(d){S.dirty=d;const s=$("#status");s.textContent=!S.loaded?"":(d?"Unsaved changes":"All changes saved");s.className=d?"dirty":""}
+function enableButtons(){ $("#bSave").disabled=!S.loaded; $("#bCheck").disabled=!S.loaded; $("#bSave").textContent = S.handle ? "Save" : "Download CSV"; }
+function render(){
+  const app=$("#app");
+  if(!S.loaded){
+    app.innerHTML=`<div class="drop" id="drop"><h2>Open your My To-Do CSV</h2>
+      <p class="small">Drop the file here, or use <b>Open CSV…</b> above. Everything stays in your browser — nothing is uploaded.</p>
+      <div class="row" style="justify-content:center"><button class="btn primary" id="dOpen">Open CSV…</button><button class="btn" id="dNew">Start a new file</button></div>
+      <ol><li>In the app: <b>Settings → Export / Backup</b> and save the CSV.</li><li>Open it here, edit tasks, lists, repeats, reminders, time zones and checklists.</li><li>Save, then import or restore the CSV in the app.</li></ol>
+      <p class="small">Tip: in Chrome or Edge, <b>Save</b> writes straight back to the same file (put it in a OneDrive / Google Drive folder to share it between devices). Other browsers download a fresh copy.</p></div>`;
+    $("#dOpen").onclick=openFile; $("#dNew").onclick=newFile;
+    const d=$("#drop");
+    ["dragover","dragenter"].forEach(e=>d.addEventListener(e,ev=>{ev.preventDefault();d.classList.add("over")}));
+    ["dragleave","drop"].forEach(e=>d.addEventListener(e,ev=>{ev.preventDefault();d.classList.remove("over")}));
+    d.addEventListener("drop",ev=>{const f=ev.dataTransfer.files[0]; if(f) readFile(f)});
+    return;
+  }
+  const all=lists();
+  const cnt=k=>S.rows.filter(r=>{switch(k){case"all":return !isDone(r)&&!isOverdueRow(r);case"overdue":return isOverdueRow(r);case"done":return isDone(r);case"important":return truthy(r.f.Important)&&!isDone(r);case"myday":return truthy(r.f.MyDay)&&!isDone(r)}}).length;
+  const navBtn=(kind,label,extra="",name="")=>{
+    const on=S.view.kind===kind&&(kind!=="list"||S.view.name===name);
+    return `<button class="${on?"on":""}" data-k="${kind}" data-n="${esc(name)}"><span>${extra}${esc(label)}</span><span class="n">${kind==="list"?(all.find(l=>l.name===name)||{}).open:cnt(kind)}</span></button>`;
+  };
+  const title = S.view.kind==="list"?S.view.name:({all:"All tasks",overdue:"Overdue",done:"Completed",important:"Important",myday:"My Day"})[S.view.kind];
+  const rows=visibleRows();
+  app.innerHTML=`<div class="wrap">
+    <nav class="nav">
+      ${navBtn("all","All tasks")}${navBtn("myday","My Day")}${navBtn("important","Important")}${navBtn("overdue","⚠ Overdue")}${navBtn("done","Completed")}
+      <h4>Lists</h4>
+      ${all.filter(l=>!/^unassigned$/i.test(l.name)||l.all).map(l=>navBtn("list",l.name,`<span class="dot" style="background:${hue(l.name)}"></span>`,l.name)).join("")}
+      <div class="row" style="padding:8px 6px 4px"><button class="btn sm" id="bAddList">+ List</button>${S.view.kind==="list"?`<button class="btn sm" id="bRenList">Rename</button><button class="btn sm danger" id="bDelList">Delete</button>`:""}</div>
+    </nav>
+    <section class="main">
+      <div class="hero"><h2>${esc(title)}</h2><span class="pill">${rows.length}</span><span class="grow"></span>
+        <input class="search" id="q" placeholder="Search…" value="${esc(S.q)}"><button class="btn primary" id="bAdd">+ New task</button></div>
+      <div class="card">${rows.length?rows.map(taskHtml).join(""):`<div class="empty">Nothing here${S.q?" for that search":""}.</div>`}</div>
+      <p class="small" style="margin-top:10px">${esc(S.fileName)} · ${S.rows.length} tasks${S.settings.length?` · ${S.settings.length} app settings kept as they are`:""}</p>
+    </section></div>`;
+  app.querySelectorAll(".nav button[data-k]").forEach(b=>b.onclick=()=>{S.view=b.dataset.k==="list"?{kind:"list",name:b.dataset.n}:{kind:b.dataset.k};render()});
+  $("#q").oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;render();const q=$("#q");q.focus();q.setSelectionRange(pos,pos)};
+  $("#bAdd").onclick=()=>taskDialog(null);
+  $("#bAddList").onclick=listDialog;
+  if($("#bRenList")) $("#bRenList").onclick=()=>renameListDialog(S.view.name);
+  if($("#bDelList")) $("#bDelList").onclick=()=>deleteListDialog(S.view.name);
+  app.querySelectorAll(".task").forEach(el=>{
+    const id=+el.dataset.id;
+    el.querySelector(".body").onclick=()=>taskDialog(id);
+    el.querySelector(".chk").onchange=e=>toggleDone(id,e.target.checked);
+    el.querySelector(".star").onclick=()=>{const r=rowById(id);r.f.Important=truthy(r.f.Important)?"FALSE":"TRUE";setDirty(true);render()};
+  });
+}
+const rowById = id => S.rows.find(r=>r.id===id);
+function taskHtml(r){
+  const nx=nextReminder(r), done=isDone(r), over=isOverdueRow(r);
+  const rep=repeatText(r);
+  const chips=[
+    `<span class="chip">${esc(effList(r))}</span>`,
+    nx?`<span class="chip ${over?"over":""}">${over?"⚠ ":"⏰ "}${esc(fmtWhen(nx.text))}</span>`:(done?"":`<span class="chip over">⚠ no reminder</span>`),
+    rep?`<span class="chip">↻ ${esc(rep)}</span>`:"",
+    r.f.ReminderZone?`<span class="chip">🌐 ${esc(r.f.ReminderZone)}</span>`:"",
+    truthy(r.f.SkipOverdue)&&isRepeat(r)?`<span class="chip flag">skips Overdue</span>`:"",
+    truthy(r.f.SkipCompleted)&&isRepeat(r)?`<span class="chip flag">skips Completed</span>`:"",
+    r.subs.length?`<span class="chip">☑ ${r.subs.filter(s=>s.d).length}/${r.subs.length}</span>`:"",
+    truthy(r.f.MyDay)?`<span class="chip">☀ My Day</span>`:""
+  ].join("");
+  return `<div class="task ${done?"done":""}" data-id="${r.id}"><input type="checkbox" class="chk" ${done?"checked":""} aria-label="Done">
+    <div class="body"><div class="t">${esc(r.f.Title)}</div><div class="meta">${chips}</div></div>
+    <button class="star ${truthy(r.f.Important)?"on":""}" aria-label="Important">${truthy(r.f.Important)?"★":"☆"}</button></div>`;
+}
+function toggleDone(id,on){
+  const r=rowById(id); r.f.Completed=on?"TRUE":"FALSE";
+  if(!on && /^completed$/i.test(r.f.List.trim())){ r.f.List=r.f.HomeList||"Unassigned"; r.f.HomeList=""; }
+  setDirty(true); render();
+}
+
+/* ------------------------------------------------------------------ dialogs */
+const dlg=$("#dlg");
+function openDlg(html){dlg.innerHTML=html; if(!dlg.open) dlg.showModal();}
+function closeDlg(){dlg.close()}
+function listDialog(){
+  openDlg(`<div class="dh">New list</div><div class="db"><label class="f">Name</label><input class="in" id="ln" maxlength="60" autofocus>
+    <p class="hint">A list only exists in the CSV once it has a task, so a first task is created in it.</p></div>
+    <div class="df"><button class="btn" id="x">Cancel</button><button class="btn primary" id="ok">Create</button></div>`);
+  $("#x").onclick=closeDlg;
+  $("#ok").onclick=()=>{const n=$("#ln").value.trim(); if(!n||isArchiveHeading(n)||n===SETTINGS_LIST) return toast("Pick another name — that one is reserved or empty."); closeDlg(); taskDialog(null,n)};
+}
+function renameListDialog(name){
+  openDlg(`<div class="dh">Rename list</div><div class="db"><input class="in" id="ln" value="${esc(name)}" maxlength="60"></div>
+    <div class="df"><button class="btn" id="x">Cancel</button><button class="btn primary" id="ok">Rename</button></div>`);
+  $("#x").onclick=closeDlg;
+  $("#ok").onclick=()=>{const n=$("#ln").value.trim(); if(!n||isArchiveHeading(n)||n===SETTINGS_LIST) return toast("Pick another name — that one is reserved or empty.");
+    S.rows.forEach(r=>{ if(isArchiveHeading(r.f.List)){ if(r.f.HomeList===name) r.f.HomeList=n } else if(r.f.List===name) r.f.List=n });
+    S.view={kind:"list",name:n}; setDirty(true); closeDlg(); render();};
+}
+function deleteListDialog(name){
+  const n=S.rows.filter(r=>effList(r)===name).length;
+  openDlg(`<div class="dh">Delete “${esc(name)}”?</div><div class="db"><p>This removes the list and its <b>${n}</b> task${n===1?"":"s"} from the file. You can still close without saving to undo.</p></div>
+    <div class="df"><button class="btn" id="x">Cancel</button><button class="btn danger" id="ok">Delete</button></div>`);
+  $("#x").onclick=closeDlg;
+  $("#ok").onclick=()=>{S.rows=S.rows.filter(r=>effList(r)!==name); S.view={kind:"all"}; setDirty(true); closeDlg(); render()};
+}
+
+function blankRow(listName){
+  const d=new Date(Date.now()+3600e3); d.setMinutes(0,0,0);
+  const f={}; CORE.concat(OPTIONAL).forEach(n=>f[n]="");
+  Object.assign(f,{List:listName||"Unassigned",Completed:"FALSE",Important:"FALSE",MyDay:"FALSE",RecurrenceType:"NONE",Interval:"1",
+    Reminders:`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`});
+  return {id:S.nextId++,f,subs:[]};
+}
+const toLocalInput = s => s.replace(" ","T");
+const fromLocalInput = s => s.replace("T"," ");
+
+function taskDialog(id, newListName){
+  const isNew = id==null;
+  const row = isNew ? blankRow(newListName || (S.view.kind==="list"?S.view.name:(lists()[0]||{}).name)) : rowById(id);
+  const f = {...row.f};
+  const subs = row.subs.map(s=>({...s}));
+  let rems = remindersOf(row).sort();
+  let zone = f.ReminderZone||"";
+  const names = lists().map(l=>l.name);
+  if(!names.includes(effList(row))) names.push(effList(row));
+  const sound = f.ReminderSound;
+
+  const optSel=(arr,val)=>arr.map(([v,l])=>`<option value="${v}" ${val===v?"selected":""}>${l}</option>`).join("");
+  openDlg(`<div class="dh">${isNew?"New task":"Edit task"}</div><div class="db">
+    <label class="f">Title</label><input class="in" id="t" maxlength="${LIM.title}" value="${esc(f.Title)}">
+    <label class="f">Notes</label><textarea class="in" id="n" maxlength="${LIM.notes}">${esc(f.Notes)}</textarea>
+    <div class="row"><div style="flex:1;min-width:180px"><label class="f">List</label><select class="in" id="l">${names.map(n=>`<option ${n===effList(row)?"selected":""}>${esc(n)}</option>`).join("")}<option value="__new">+ New list…</option></select><input class="in" id="ln" placeholder="New list name" maxlength="60" style="display:none;margin-top:6px"></div></div>
+    <div class="cb"><input type="checkbox" id="done" ${truthy(f.Completed)?"checked":""}><label for="done">Completed</label></div>
+    <div class="cb"><input type="checkbox" id="imp" ${truthy(f.Important)?"checked":""}><label for="imp">Important ★</label></div>
+    <div class="cb"><input type="checkbox" id="md" ${truthy(f.MyDay)?"checked":""}><label for="md">Show in My Day</label></div>
+
+    <label class="f">Reminders</label><div id="rems"></div>
+    <button class="btn sm" id="addRem">+ Add reminder</button>
+    <label class="f">Reminder time zone</label>
+    <div class="row"><button class="btn" id="zBtn" style="flex:1;text-align:left"></button><button class="btn sm" id="zClear">Use device zone</button></div>
+    <div id="zPanel" style="display:none"><input class="in" id="zq" placeholder="Search city, country or zone (e.g. London, New York, Paris, Sydney, GMT)" style="margin-top:8px"><div class="zlist" id="zl"></div></div>
+    <p class="hint">Reminder times are clock times in this zone; a repeating reminder keeps the same clock time through daylight saving.</p>
+
+    <label class="f">Repeat</label>
+    <div class="row"><select class="in" id="rt" style="max-width:170px">${optSel([["NONE","Doesn't repeat"],["DAILY","Daily"],["WEEKLY","Weekly"],["MONTHLY","Monthly"],["YEARLY","Yearly"]],(f.RecurrenceType||"NONE").toUpperCase())}</select>
+      <span id="intWrap">every <input class="in" id="iv" type="number" min="1" style="width:80px;display:inline-block" value="${esc(f.Interval||"1")}"> <span id="unit"></span></span></div>
+    <div id="rdet"></div>
+    <div id="endWrap">
+      <label class="f">Repeat ends</label>
+      <div class="row"><select class="in" id="re" style="max-width:220px">${optSel([["NEVER","Never"],["ON_DATE","On a date"],["AFTER_OCCURRENCES","After a number of times"]],f.RepeatEnds&&f.RepeatEnds!==""?f.RepeatEnds.toUpperCase():"NEVER")}</select>
+        <input class="in" id="red" type="date" style="max-width:170px" value="${esc(f.RepeatEndDate)}">
+        <input class="in" id="rec" type="number" min="1" max="${LIM.endCount}" style="max-width:110px" value="${esc(f.RepeatEndCount)}"></div>
+    </div>
+    <div class="cb" style="margin-top:14px"><input type="checkbox" id="so" ${truthy(f.SkipOverdue)?"checked":""}><label for="so">Don't show in Overdue</label></div>
+    <div class="cb"><input type="checkbox" id="sc" ${truthy(f.SkipCompleted)?"checked":""}><label for="sc">Don't show in Completed</label></div>
+    <p class="hint" id="skipHint">These two apply once the task repeats: a missed occurrence is dropped quietly instead of piling up in Overdue, and ticking an occurrence leaves no entry in Completed.</p>
+
+    <label class="f">Checklist</label><div id="subs"></div><button class="btn sm" id="addSub">+ Add item</button>
+    ${sound?`<label class="f">Reminder sound</label><div class="row"><span class="chip" style="max-width:100%;overflow:hidden;text-overflow:ellipsis">${esc(sound==="silent"?"Silent":"Custom tone (set on the phone)")}</span><label class="cb" style="margin:0"><input type="checkbox" id="keepSound" checked> keep</label></div><p class="hint">Tones live on the phone, so they can't be chosen here — they're kept unless you untick this (the task then follows the app's default tone).</p>`:""}
+  </div>
+  <div class="df">${isNew?"":`<button class="btn danger" id="del" style="margin-right:auto">Delete</button>`}<button class="btn" id="x">Cancel</button><button class="btn primary" id="ok">${isNew?"Add task":"Done"}</button></div>`);
+
+  const d=dlg;
+  const q=s=>d.querySelector(s);
+  /* list select */
+  q("#l").onchange=()=>{ q("#ln").style.display = q("#l").value==="__new"?"block":"none"; if(q("#l").value==="__new") q("#ln").focus(); };
+  /* reminders */
+  function drawRems(){
+    q("#rems").innerHTML = rems.length? rems.map((r,i)=>`<div class="sub"><input class="in" type="datetime-local" data-i="${i}" value="${esc(toLocalInput(r))}"><button class="btn sm danger" data-rm="${i}">✕</button></div>`).join("") : `<p class="hint">No reminders.</p>`;
+    d.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{rems.splice(+b.dataset.rm,1);drawRems()});
+    d.querySelectorAll("#rems input").forEach(inp=>inp.onchange=()=>{rems[+inp.dataset.i]=fromLocalInput(inp.value)});
+    q("#addRem").disabled = rems.length>=LIM.reminders;
+  }
+  q("#addRem").onclick=()=>{const last=rems.length?rems[rems.length-1]:blankRow().f.Reminders; rems.push(last); drawRems()};
+  drawRems();
+  /* zone */
+  function drawZone(){ q("#zBtn").textContent = zone? zoneDescription(zone) : "Device time zone (default)"; q("#zClear").disabled=!zone; }
+  q("#zBtn").onclick=()=>{const p=q("#zPanel"); p.style.display=p.style.display==="none"?"block":"none"; if(p.style.display==="block"){drawZoneList("");q("#zq").focus()}};
+  q("#zClear").onclick=()=>{zone="";drawZone()};
+  q("#zq").oninput=e=>drawZoneList(e.target.value);
+  function drawZoneList(text){
+    const res=searchZones(text);
+    q("#zl").innerHTML=res.length?res.map(z=>`<button data-z="${esc(z.id)}" class="${z.id===zone?"sel":""}">${esc((z.label?z.label+" — ":"")+zoneDescription(z.id))}</button>`).join(""):`<div class="hint" style="padding:8px">No zone matches that.</div>`;
+    d.querySelectorAll("#zl button").forEach(b=>b.onclick=()=>{zone=b.dataset.z;drawZone();q("#zPanel").style.display="none"});
+  }
+  drawZone();
+  /* repeat */
+  function drawRepeat(){
+    const t=q("#rt").value, rep=t!=="NONE";
+    q("#intWrap").style.display=rep?"inline":"none"; q("#endWrap").style.display=rep?"block":"none";
+    q("#unit").textContent={DAILY:"day(s)",WEEKLY:"week(s)",MONTHLY:"month(s)",YEARLY:"year(s)"}[t]||"";
+    if(rep){q("#iv").max=MAXINT[t]}
+    q("#skipHint").style.display=rep?"none":"block";
+    q("#so").disabled=!rep; q("#sc").disabled=!rep;
+    const dm=(f.DailyMode||"EVERY_N_DAYS"), ws=new Set((f.WeeklyDays||"").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean));
+    let h="";
+    if(t==="DAILY") h=`<select class="in" id="dm" style="margin-top:8px">${optSel([["EVERY_N_DAYS","Every N days"],["EVERY_WEEKDAY","Every weekday (Mon–Fri)"]],dm)}</select>`;
+    if(t==="WEEKLY") h=`<div class="days" style="margin-top:8px">${DOW.map(([c,l])=>`<label><input type="checkbox" data-d="${c}" ${ws.has(c)?"checked":""}><span>${l}</span></label>`).join("")}</div>`;
+    if(t==="MONTHLY"){
+      const mm=f.MonthlyMode||"DAY_OF_MONTH";
+      h=`<select class="in" id="mm" style="margin-top:8px">${optSel(MONTHLY_MODES,mm)}</select><div class="row" style="margin-top:8px" id="mmx"></div>`;
+    }
+    if(t==="YEARLY"){
+      const ym=f.YearlyMode||"SPECIFIC_DATE";
+      h=`<select class="in" id="ym" style="margin-top:8px">${optSel(YEARLY_MODES,ym)}</select><div class="row" style="margin-top:8px" id="ymx"></div>`;
+    }
+    q("#rdet").innerHTML=h;
+    const ordDow=()=>`<select class="in" id="wo" style="max-width:120px">${optSel(ORD,f.WeekOrdinal||"FIRST")}</select><select class="in" id="wd" style="max-width:130px">${DOW.map(([c,l])=>`<option value="${c}" ${(f.DayOfWeek||"MO")===c?"selected":""}>${l}</option>`).join("")}</select>`;
+    const dayNum=()=>`day <input class="in" id="dn" type="number" min="1" max="31" style="max-width:80px" value="${esc(f.DayOfMonth||"1")}">`;
+    const monthSel=()=>`<select class="in" id="mo" style="max-width:150px">${MONTHS.map((m,i)=>`<option value="${i+1}" ${(+(f.Month||1))===i+1?"selected":""}>${m}</option>`).join("")}</select>`;
+    if(t==="MONTHLY"){
+      const upd=()=>{const m=q("#mm").value; q("#mmx").innerHTML = m==="DAY_OF_MONTH"?dayNum(): m==="NTH_WEEKDAY"?ordDow():"";};
+      q("#mm").onchange=()=>{f.MonthlyMode=q("#mm").value; upd()}; upd();
+    }
+    if(t==="YEARLY"){
+      const upd=()=>{const m=q("#ym").value; q("#ymx").innerHTML = m==="SPECIFIC_DATE"?monthSel()+dayNum(): m==="NTH_WEEKDAY"?ordDow()+" of "+monthSel(): monthSel();};
+      q("#ym").onchange=()=>{f.YearlyMode=q("#ym").value; upd()}; upd();
+    }
+  }
+  q("#rt").onchange=()=>{f.RecurrenceType=q("#rt").value; drawRepeat()};
+  drawRepeat();
+  const endVis=()=>{ const e=q("#re").value; q("#red").style.display=e==="ON_DATE"?"block":"none"; q("#rec").style.display=e==="AFTER_OCCURRENCES"?"block":"none"; q("#rec").placeholder="times"; };
+  q("#re").onchange=endVis; endVis();
+  /* subtasks */
+  function drawSubs(){
+    q("#subs").innerHTML=subs.map((s,i)=>`<div class="sub"><input type="checkbox" class="chk" data-sd="${i}" ${s.d?"checked":""}><input class="in" data-st="${i}" maxlength="${LIM.subTitle}" value="${esc(s.t)}"><button class="btn sm danger" data-sr="${i}">✕</button></div>`).join("");
+    d.querySelectorAll("[data-sr]").forEach(b=>b.onclick=()=>{subs.splice(+b.dataset.sr,1);drawSubs()});
+    d.querySelectorAll("[data-sd]").forEach(b=>b.onchange=()=>{subs[+b.dataset.sd].d=b.checked});
+    d.querySelectorAll("[data-st]").forEach(b=>b.oninput=()=>{subs[+b.dataset.st].t=b.value});
+    q("#addSub").disabled=subs.length>=LIM.subtasks;
+  }
+  q("#addSub").onclick=()=>{subs.push({t:"",d:false});drawSubs();const l=d.querySelectorAll("[data-st]");l[l.length-1].focus()};
+  drawSubs();
+
+  q("#x").onclick=closeDlg;
+  if(q("#del")) q("#del").onclick=()=>{ if(confirm("Delete this task?")){S.rows=S.rows.filter(r=>r.id!==row.id);setDirty(true);closeDlg();render()} };
+  q("#ok").onclick=()=>{
+    const title=q("#t").value.replace(/[\r\n]+/g," ").trim();
+    if(!title) return toast("Give the task a title.");
+    let listName=q("#l").value; if(listName==="__new") listName=q("#ln").value.trim();
+    if(!listName||isArchiveHeading(listName)||listName===SETTINGS_LIST) return toast("Pick a list (that name is reserved or empty).");
+    const t=q("#rt").value, rep=t!=="NONE";
+    const out={...row.f};
+    out.Title=title; out.Notes=q("#n").value;
+    const done=q("#done").checked; out.Completed=done?"TRUE":"FALSE";
+    out.Important=q("#imp").checked?"TRUE":"FALSE"; out.MyDay=q("#md").checked?"TRUE":"FALSE";
+    // list: archived rows keep their heading and update HomeList
+    if(isArchiveHeading(row.f.List) && !(/^completed$/i.test(row.f.List) && !done)){ out.HomeList=listName; }
+    else { out.List=listName; out.HomeList=""; }
+    out.Reminders=[...new Set(rems.filter(Boolean))].sort().join(";");
+    out.ReminderZone=zone;
+    out.RecurrenceType=t;
+    ["Interval","DailyMode","WeeklyDays","MonthlyMode","YearlyMode","DayOfMonth","Month","WeekOrdinal","DayOfWeek","RepeatEnds","RepeatEndDate","RepeatEndCount"].forEach(k=>out[k]="");
+    out.Interval="1";
+    if(rep){
+      let iv=parseInt(q("#iv").value,10); if(!(iv>=1)) iv=1; iv=Math.min(iv,MAXINT[t]); out.Interval=String(iv);
+      if(t==="DAILY") out.DailyMode=q("#dm").value;
+      if(t==="WEEKLY"){ const days=[...d.querySelectorAll("[data-d]")].filter(x=>x.checked).map(x=>x.dataset.d);
+        if(!days.length) return toast("Pick at least one weekday for a weekly repeat."); out.WeeklyDays=DOW.map(x=>x[0]).filter(c=>days.includes(c)).join(","); }
+      if(t==="MONTHLY"){ const m=q("#mm").value; out.MonthlyMode=m;
+        if(m==="DAY_OF_MONTH") out.DayOfMonth=String(Math.min(31,Math.max(1,parseInt(q("#dn").value,10)||1)));
+        if(m==="NTH_WEEKDAY"){ out.WeekOrdinal=q("#wo").value; out.DayOfWeek=q("#wd").value; } }
+      if(t==="YEARLY"){ const m=q("#ym").value; out.YearlyMode=m; out.Month=q("#mo").value;
+        if(m==="SPECIFIC_DATE") out.DayOfMonth=String(Math.min(31,Math.max(1,parseInt(q("#dn").value,10)||1)));
+        if(m==="NTH_WEEKDAY"){ out.WeekOrdinal=q("#wo").value; out.DayOfWeek=q("#wd").value; } }
+      const e=q("#re").value;
+      if(e==="ON_DATE"){ if(!q("#red").value) return toast("Choose the date the repeat ends."); out.RepeatEnds=e; out.RepeatEndDate=q("#red").value; }
+      if(e==="AFTER_OCCURRENCES"){ const c=parseInt(q("#rec").value,10); if(!(c>=1&&c<=LIM.endCount)) return toast(`Enter how many times (1–${LIM.endCount}).`); out.RepeatEnds=e; out.RepeatEndCount=String(c); }
+    }
+    out.SkipOverdue = rep&&q("#so").checked?"TRUE":"";
+    out.SkipCompleted = rep&&q("#sc").checked?"TRUE":"";
+    if(q("#keepSound")&&!q("#keepSound").checked) out.ReminderSound="";
+    const cleanSubs=subs.map(s=>({t:s.t.replace(/[\r\n]+/g," ").trim(),d:s.d})).filter(s=>s.t);
+    row.f=out; row.subs=cleanSubs;
+    if(isNew){ S.rows.push(row); if(S.view.kind==="list") S.view={kind:"list",name:listName}; }
+    setDirty(true); closeDlg(); render();
+  };
+}
+
+/* ------------------------------------------------------------------ time zones */
+const CITY_RAW = `
+Mumbai|India|Asia/Kolkata
+Bombay|India|Asia/Kolkata
+Delhi|India|Asia/Kolkata
+New Delhi|India|Asia/Kolkata
+Chennai|India|Asia/Kolkata
+Madras|India|Asia/Kolkata
+Bangalore|India|Asia/Kolkata
+Bengaluru|India|Asia/Kolkata
+Hyderabad|India|Asia/Kolkata
+Kolkata|India|Asia/Kolkata
+Calcutta|India|Asia/Kolkata
+Pune|India|Asia/Kolkata
+Ahmedabad|India|Asia/Kolkata
+Jaipur|India|Asia/Kolkata
+Coimbatore|India|Asia/Kolkata
+Kochi|India|Asia/Kolkata
+Cochin|India|Asia/Kolkata
+Thiruvananthapuram|India|Asia/Kolkata
+Madurai|India|Asia/Kolkata
+Lucknow|India|Asia/Kolkata
+Visakhapatnam|India|Asia/Kolkata
+IST India Standard Time|India|Asia/Kolkata
+Colombo|Sri Lanka|Asia/Colombo
+Kathmandu|Nepal|Asia/Kathmandu
+Dhaka|Bangladesh|Asia/Dhaka
+Karachi|Pakistan|Asia/Karachi
+Lahore|Pakistan|Asia/Karachi
+Islamabad|Pakistan|Asia/Karachi
+Kabul|Afghanistan|Asia/Kabul
+Tehran|Iran|Asia/Tehran
+Dubai|United Arab Emirates UAE|Asia/Dubai
+Abu Dhabi|United Arab Emirates UAE|Asia/Dubai
+Doha|Qatar|Asia/Qatar
+Riyadh|Saudi Arabia|Asia/Riyadh
+Jeddah|Saudi Arabia|Asia/Riyadh
+Kuwait City|Kuwait|Asia/Kuwait
+Muscat|Oman|Asia/Muscat
+Manama|Bahrain|Asia/Bahrain
+Baghdad|Iraq|Asia/Baghdad
+Jerusalem|Israel|Asia/Jerusalem
+Tel Aviv|Israel|Asia/Jerusalem
+Amman|Jordan|Asia/Amman
+Beirut|Lebanon|Asia/Beirut
+Istanbul|Turkey|Europe/Istanbul
+Ankara|Turkey|Europe/Istanbul
+Singapore|Singapore|Asia/Singapore
+Kuala Lumpur|Malaysia|Asia/Kuala_Lumpur
+Bangkok|Thailand|Asia/Bangkok
+Jakarta|Indonesia|Asia/Jakarta
+Bali|Indonesia|Asia/Makassar
+Manila|Philippines|Asia/Manila
+Hanoi|Vietnam|Asia/Ho_Chi_Minh
+Ho Chi Minh City Saigon|Vietnam|Asia/Ho_Chi_Minh
+Yangon Rangoon|Myanmar|Asia/Yangon
+Phnom Penh|Cambodia|Asia/Phnom_Penh
+Hong Kong|China|Asia/Hong_Kong
+Macau|China|Asia/Macau
+Shanghai|China|Asia/Shanghai
+Beijing|China|Asia/Shanghai
+Shenzhen|China|Asia/Shanghai
+Guangzhou|China|Asia/Shanghai
+Taipei|Taiwan|Asia/Taipei
+Seoul|South Korea|Asia/Seoul
+Tokyo|Japan|Asia/Tokyo
+Osaka|Japan|Asia/Tokyo
+Kyoto|Japan|Asia/Tokyo
+Ulaanbaatar|Mongolia|Asia/Ulaanbaatar
+Almaty|Kazakhstan|Asia/Almaty
+Tashkent|Uzbekistan|Asia/Tashkent
+Baku|Azerbaijan|Asia/Baku
+Tbilisi|Georgia|Asia/Tbilisi
+Yerevan|Armenia|Asia/Yerevan
+Moscow|Russia|Europe/Moscow
+Saint Petersburg|Russia|Europe/Moscow
+Novosibirsk|Russia|Asia/Novosibirsk
+Vladivostok|Russia|Asia/Vladivostok
+Kyiv Kiev|Ukraine|Europe/Kyiv
+Minsk|Belarus|Europe/Minsk
+Warsaw|Poland|Europe/Warsaw
+Prague|Czech Republic|Europe/Prague
+Vienna|Austria|Europe/Vienna
+Budapest|Hungary|Europe/Budapest
+Bucharest|Romania|Europe/Bucharest
+Sofia|Bulgaria|Europe/Sofia
+Athens|Greece|Europe/Athens
+Helsinki|Finland|Europe/Helsinki
+Stockholm|Sweden|Europe/Stockholm
+Oslo|Norway|Europe/Oslo
+Copenhagen|Denmark|Europe/Copenhagen
+Berlin|Germany|Europe/Berlin
+Munich|Germany|Europe/Berlin
+Frankfurt|Germany|Europe/Berlin
+Hamburg|Germany|Europe/Berlin
+Amsterdam|Netherlands|Europe/Amsterdam
+Brussels|Belgium|Europe/Brussels
+Paris|France|Europe/Paris
+Lyon|France|Europe/Paris
+Zurich|Switzerland|Europe/Zurich
+Geneva|Switzerland|Europe/Zurich
+Rome|Italy|Europe/Rome
+Milan|Italy|Europe/Rome
+Madrid|Spain|Europe/Madrid
+Barcelona|Spain|Europe/Madrid
+Lisbon|Portugal|Europe/Lisbon
+Dublin|Ireland|Europe/Dublin
+London|United Kingdom UK England|Europe/London
+Manchester|United Kingdom UK England|Europe/London
+Edinburgh|United Kingdom UK Scotland|Europe/London
+Reykjavik|Iceland|Atlantic/Reykjavik
+Cairo|Egypt|Africa/Cairo
+Johannesburg|South Africa|Africa/Johannesburg
+Cape Town|South Africa|Africa/Johannesburg
+Nairobi|Kenya|Africa/Nairobi
+Lagos|Nigeria|Africa/Lagos
+Accra|Ghana|Africa/Accra
+Addis Ababa|Ethiopia|Africa/Addis_Ababa
+Casablanca|Morocco|Africa/Casablanca
+Algiers|Algeria|Africa/Algiers
+Tunis|Tunisia|Africa/Tunis
+Kampala|Uganda|Africa/Kampala
+Dar es Salaam|Tanzania|Africa/Dar_es_Salaam
+New York|United States USA|America/New_York
+Boston|United States USA|America/New_York
+Washington DC|United States USA|America/New_York
+Philadelphia|United States USA|America/New_York
+Atlanta|United States USA|America/New_York
+Miami|United States USA|America/New_York
+Orlando|United States USA|America/New_York
+Charlotte|United States USA|America/New_York
+Detroit|United States USA|America/Detroit
+Pittsburgh|United States USA|America/New_York
+EST EDT Eastern Time|United States USA|America/New_York
+Chicago|United States USA|America/Chicago
+Houston|United States USA|America/Chicago
+Dallas|United States USA|America/Chicago
+Austin|United States USA|America/Chicago
+San Antonio|United States USA|America/Chicago
+Minneapolis|United States USA|America/Chicago
+Nashville|United States USA|America/Chicago
+New Orleans|United States USA|America/Chicago
+Kansas City|United States USA|America/Chicago
+CST CDT Central Time|United States USA|America/Chicago
+Denver|United States USA|America/Denver
+Salt Lake City|United States USA|America/Denver
+Phoenix|United States USA|America/Phoenix
+Albuquerque|United States USA|America/Denver
+MST MDT Mountain Time|United States USA|America/Denver
+Los Angeles|United States USA|America/Los_Angeles
+San Francisco|United States USA|America/Los_Angeles
+San Jose|United States USA|America/Los_Angeles
+San Diego|United States USA|America/Los_Angeles
+Seattle|United States USA|America/Los_Angeles
+Portland|United States USA|America/Los_Angeles
+Las Vegas|United States USA|America/Los_Angeles
+Sacramento|United States USA|America/Los_Angeles
+PST PDT Pacific Time|United States USA|America/Los_Angeles
+Anchorage|United States USA|America/Anchorage
+Honolulu|United States USA Hawaii|Pacific/Honolulu
+Toronto|Canada|America/Toronto
+Ottawa|Canada|America/Toronto
+Montreal|Canada|America/Toronto
+Vancouver|Canada|America/Vancouver
+Calgary|Canada|America/Edmonton
+Edmonton|Canada|America/Edmonton
+Winnipeg|Canada|America/Winnipeg
+Halifax|Canada|America/Halifax
+Mexico City|Mexico|America/Mexico_City
+Guadalajara|Mexico|America/Mexico_City
+Cancun|Mexico|America/Cancun
+Havana|Cuba|America/Havana
+Panama City|Panama|America/Panama
+San Jose Costa Rica|Costa Rica|America/Costa_Rica
+Bogota|Colombia|America/Bogota
+Lima|Peru|America/Lima
+Quito|Ecuador|America/Guayaquil
+Caracas|Venezuela|America/Caracas
+Santiago|Chile|America/Santiago
+Buenos Aires|Argentina|America/Argentina/Buenos_Aires
+Montevideo|Uruguay|America/Montevideo
+Sao Paulo|Brazil|America/Sao_Paulo
+Rio de Janeiro|Brazil|America/Sao_Paulo
+Brasilia|Brazil|America/Sao_Paulo
+La Paz|Bolivia|America/La_Paz
+Sydney|Australia|Australia/Sydney
+Melbourne|Australia|Australia/Melbourne
+Brisbane|Australia|Australia/Brisbane
+Perth|Australia|Australia/Perth
+Adelaide|Australia|Australia/Adelaide
+Darwin|Australia|Australia/Darwin
+Canberra|Australia|Australia/Sydney
+Auckland|New Zealand|Pacific/Auckland
+Wellington|New Zealand|Pacific/Auckland
+Fiji Suva|Fiji|Pacific/Fiji
+GMT Greenwich Mean Time|Coordinated|GMT
+UTC Universal Time Zulu|Coordinated|UTC
+BST British Summer Time|United Kingdom UK|Europe/London
+CET CEST Central European Time|Europe|Europe/Paris
+EET EEST Eastern European Time|Europe|Europe/Athens
+WET Western European Time|Europe|Europe/Lisbon
+MSK Moscow Time|Russia|Europe/Moscow
+GST Gulf Standard Time|United Arab Emirates UAE|Asia/Dubai
+SGT Singapore Time|Singapore|Asia/Singapore
+HKT Hong Kong Time|China|Asia/Hong_Kong
+CST China Standard Time|China|Asia/Shanghai
+JST Japan Standard Time|Japan|Asia/Tokyo
+KST Korea Standard Time|South Korea|Asia/Seoul
+AEST AEDT Australian Eastern Time|Australia|Australia/Sydney
+ACST Australian Central Time|Australia|Australia/Adelaide
+AWST Australian Western Time|Australia|Australia/Perth
+NZST NZDT New Zealand Time|New Zealand|Pacific/Auckland
+AKST AKDT Alaska Time|United States USA|America/Anchorage
+HST Hawaii Time|United States USA|Pacific/Honolulu
+SAST South Africa Standard Time|South Africa|Africa/Johannesburg
+EAT East Africa Time|Kenya|Africa/Nairobi
+WAT West Africa Time|Nigeria|Africa/Lagos
+`;
+const fold = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[_-]/g," ").trim();
+const CITY = CITY_RAW.trim().split("\n").map(l=>{const p=l.split("|");return p.length===3?{city:p[0],country:p[1],zone:p[2],hay:fold(p[0]+" "+p[1])}:null}).filter(Boolean);
+const POPULAR = ["Europe/London","GMT","UTC","America/New_York","Europe/Paris","Australia/Sydney","America/Chicago","America/Denver","America/Los_Angeles","America/Toronto","America/Sao_Paulo","Europe/Berlin","Europe/Moscow","Asia/Dubai","Asia/Kolkata","Asia/Singapore","Asia/Shanghai","Asia/Tokyo","Pacific/Auckland"];
+let ALLZ=[];
+try{ ALLZ=Intl.supportedValuesOf("timeZone").filter(z=>z.includes("/")&&!z.startsWith("Etc/")); }catch(e){}
+["UTC","GMT"].forEach(z=>{ if(!ALLZ.includes(z)) ALLZ.push(z) });
+ALLZ.sort();
+const cityLabel = c => { const short=c.city.length>24?c.city.split(" ")[0]:c.city; const cw=c.country.split(" "); return short+", "+cw.slice(0,/^United/.test(c.country)?2:1).join(" "); };
+function zoneDescription(id){
+  if(id==="GMT") return "GMT · Greenwich Mean Time (UTC+00:00)";
+  if(id==="UTC") return "UTC · Coordinated Universal Time (UTC+00:00)";
+  try{
+    const now=new Date();
+    const name=new Intl.DateTimeFormat("en",{timeZone:id,timeZoneName:"long"}).formatToParts(now).find(p=>p.type==="timeZoneName").value;
+    const off=new Intl.DateTimeFormat("en",{timeZone:id,timeZoneName:"longOffset"}).formatToParts(now).find(p=>p.type==="timeZoneName").value.replace("GMT","UTC");
+    const city=id.includes("/")?" · "+id.split("/").pop().replace(/_/g," "):"";
+    return `${name}${city} (${off==="UTC"?"UTC+00:00":off} now)`;
+  }catch(e){return id}
+}
+function searchZones(text){
+  const f=fold(text);
+  if(!f) return POPULAR.map(id=>({id,label:""}));
+  const out=new Map();
+  CITY.filter(c=>c.hay.includes(f)).sort((a,b)=>(fold(a.city).startsWith(f)?0:1)-(fold(b.city).startsWith(f)?0:1))
+    .forEach(c=>{ if(!out.has(c.zone)) out.set(c.zone,cityLabel(c)); });
+  ALLZ.filter(id=>fold(id).includes(f)||fold(zoneName(id)).includes(f)).forEach(id=>{ if(!out.has(id)) out.set(id,""); });
+  return [...out.entries()].slice(0,80).map(([id,label])=>({id,label}));
+}
+function zoneName(id){try{return new Intl.DateTimeFormat("en",{timeZone:id,timeZoneName:"long"}).formatToParts(new Date()).find(p=>p.type==="timeZoneName").value}catch(e){return ""}}
+
+/* ------------------------------------------------------------------ file handling */
+async function openFile(){
+  if(!confirmDiscard()) return;
+  if(window.showOpenFilePicker){
+    try{
+      const [h]=await showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
+      const file=await h.getFile(); loadCsvText(await file.text(), file.name, h);
+    }catch(e){ if(e&&e.name!=="AbortError") toast(e.message||"Couldn't open that file."); }
+  } else $("#fileIn").click();
+}
+function readFile(file){
+  if(!confirmDiscard()) return;
+  file.text().then(t=>{ try{loadCsvText(t,file.name,null)}catch(e){toast(e.message)} });
+}
+$("#fileIn").onchange=e=>{const f=e.target.files[0]; e.target.value=""; if(f) readFile(f)};
+function confirmDiscard(){ return !S.dirty || confirm("You have unsaved changes. Discard them?"); }
+function newFile(){
+  if(!confirmDiscard()) return;
+  S.rows=[]; S.settings=[]; S.fileName="mytodo.csv"; S.handle=null; S.loaded=true; S.view={kind:"all"}; S.q="";
+  setDirty(false); render(); enableButtons(); taskDialog(null,"My list");
+}
+async function save(){
+  const bad=problems().filter(p=>p.level==="error");
+  if(bad.length && !confirm(`${bad.length} problem(s) were found (e.g. “${bad[0].text}”). Save anyway?`)) return;
+  const csv=buildCsv();
+  if(S.handle){
+    try{
+      const w=await S.handle.createWritable(); await w.write(csv); await w.close();
+      setDirty(false); toast("Saved to "+S.fileName); return;
+    }catch(e){ toast("Couldn't write to the file — downloading a copy instead."); }
+  }
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=S.fileName.replace(/(\.csv)?$/i,"")+(S.handle?"":"")+".csv"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  setDirty(false); toast("CSV downloaded. Import or restore it in the app.");
+}
+$("#bSave").onclick=save;
+$("#bOpen").onclick=openFile;
+$("#bNew").onclick=newFile;
+$("#bLink").onclick=()=>{
+  openDlg(`<div class="dh">Open from a link</div><div class="db">
+    <p class="small">Works for a link that serves the raw CSV with browser access allowed (for example a raw GitHub file or a public file host that permits it). OneDrive and Google Drive share links usually don't allow this — download the file and use <b>Open CSV…</b> instead.</p>
+    <input class="in" id="u" placeholder="https://…/mytodo.csv"></div>
+    <div class="df"><button class="btn" id="x">Cancel</button><button class="btn primary" id="ok">Open</button></div>`);
+  $("#x").onclick=closeDlg;
+  $("#ok").onclick=async()=>{
+    let u=$("#u").value.trim(); if(!u) return;
+    u=u.replace(/^https:\/\/github\.com\/([^/]+\/[^/]+)\/blob\//,"https://raw.githubusercontent.com/$1/");
+    const m=/drive\.google\.com\/file\/d\/([^/]+)/.exec(u); if(m) u=`https://drive.google.com/uc?export=download&id=${m[1]}`;
+    try{
+      if(!confirmDiscard()) return;
+      const res=await fetch(u); if(!res.ok) throw new Error("HTTP "+res.status);
+      const text=await res.text(); closeDlg(); loadCsvText(text, decodeURIComponent(u.split("/").pop().split("?")[0])||"mytodo.csv", null);
+    }catch(e){ toast("Couldn't read that link ("+(e.message||"blocked by the site")+"). Download the file and use Open CSV… instead."); }
+  };
+};
+
+/* ------------------------------------------------------------------ checks */
+function problems(){
+  const p=[];
+  const seen=new Set(S.rows.map(r=>effList(r).toLowerCase())); if(seen.size>LIM.lists) p.push({level:"error",text:`${seen.size} lists — the app allows at most ${LIM.lists}.`});
+  if(S.rows.length>LIM.tasks) p.push({level:"error",text:`${S.rows.length} tasks — one import takes at most ${LIM.tasks}.`});
+  S.rows.forEach(r=>{
+    const t=r.f.Title.slice(0,30);
+    if(!r.f.Title.trim()) p.push({level:"error",text:"A task has no title."});
+    if(r.f.Title.length>LIM.title) p.push({level:"warn",text:`“${t}…” has a title over ${LIM.title} characters (it will be shortened).`});
+    if(r.f.Notes.length>LIM.notes) p.push({level:"warn",text:`“${t}” has notes over ${LIM.notes} characters (they will be shortened).`});
+    const rem=remindersOf(r);
+    if(!isDone(r)&&!isOverdueRow(r)&&!rem.length) p.push({level:"warn",text:`“${t}” has no reminder — Import skips it (Restore keeps it).`});
+    if(rem.length>LIM.reminders) p.push({level:"error",text:`“${t}” has more than ${LIM.reminders} reminders.`});
+    rem.forEach(x=>{ if(!/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(x)) p.push({level:"error",text:`“${t}”: reminder “${x}” must look like 2027-03-14 09:00.`}) });
+    if(r.subs.length>LIM.subtasks) p.push({level:"error",text:`“${t}” has more than ${LIM.subtasks} checklist items.`});
+    const ty=(r.f.RecurrenceType||"NONE").toUpperCase();
+    if(!["NONE","DAILY","WEEKLY","MONTHLY","YEARLY"].includes(ty)) p.push({level:"error",text:`“${t}” has an unknown repeat “${r.f.RecurrenceType}”.`});
+  });
+  return p;
+}
+$("#bCheck").onclick=()=>{
+  const p=problems();
+  openDlg(`<div class="dh">File check</div><div class="db">${p.length?p.slice(0,60).map(x=>`<div class="warnbox">${x.level==="error"?"⛔":"⚠"} ${esc(x.text)}</div>`).join(""):`<p>✅ No problems found — the app should import this file cleanly.</p>`}${p.length>60?`<p class="small">…and ${p.length-60} more.</p>`:""}</div><div class="df"><button class="btn primary" id="x">Close</button></div>`);
+  $("#x").onclick=closeDlg;
+};
+
+/* ------------------------------------------------------------------ theme + boot */
+$("#bTheme").onclick=()=>{
+  const cur=document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  const next=cur==="dark"?"light":"dark"; document.documentElement.dataset.theme=next; lsSet("mytodo-web-theme",next);
+};
+{const t=lsGet("mytodo-web-theme"); if(t) document.documentElement.dataset.theme=t;}
+window.addEventListener("beforeunload",e=>{ if(S.dirty){e.preventDefault();e.returnValue=""} });
+document.addEventListener("keydown",e=>{ if((e.ctrlKey||e.metaKey)&&e.key==="s"){ e.preventDefault(); if(S.loaded) save(); } });
+render();
+</script>
+</body>
+</html>
