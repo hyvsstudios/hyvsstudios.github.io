@@ -40,7 +40,7 @@ button{cursor:pointer}
 .btn.sm{padding:4px 9px;font-size:13px;border-radius:8px}
 #status{color:var(--muted);font-size:13px}
 #status.dirty{color:var(--warn);font-weight:600}
-.wrap{display:grid;grid-template-columns:250px 1fr;gap:18px;max-width:1180px;margin:18px auto;padding:0 16px}
+.wrap{display:grid;grid-template-columns:250px 1fr;gap:18px;max-width:1600px;margin:18px auto;padding:0 16px}
 @media (max-width:820px){.wrap{grid-template-columns:1fr}}
 .nav{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:8px;height:fit-content;box-shadow:var(--shadow)}
 .nav h4{margin:10px 10px 4px;font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted)}
@@ -101,6 +101,35 @@ textarea.in{min-height:84px;resize:vertical}
 .warnbox{background:color-mix(in srgb,var(--warn) 14%,transparent);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:10px;padding:9px 12px;margin:10px 0;font-size:13.5px}
 .small{font-size:12.5px;color:var(--muted)}
 a{color:var(--accent)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:7px 11px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--accent-soft);color:var(--accent)}
+.gridwrap{overflow:auto;max-height:calc(100vh - 190px);background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:14px}
+.grid th{position:sticky;top:0;z-index:3;background:var(--chip);color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap;user-select:none}
+.grid th.sortable{cursor:pointer}
+.grid td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle;background:var(--panel)}
+.grid tr:hover td{background:color-mix(in srgb,var(--chip) 60%,var(--panel))}
+.grid .s1,.grid .s2,.grid .s3{position:sticky;z-index:2}
+.grid th.s1,.grid th.s2,.grid th.s3{z-index:4}
+.grid .s1{left:0;min-width:44px;max-width:44px;text-align:center}
+.grid .s2{left:44px;min-width:54px;max-width:54px;text-align:center}
+.grid .s3{left:98px;min-width:260px;max-width:260px;box-shadow:2px 0 0 var(--line)}
+.grid td input[type=text],.grid td input[type=datetime-local],.grid td select{width:100%;border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:7px}
+.grid td input[type=text]:hover,.grid td input[type=datetime-local]:hover,.grid td select:hover{border-color:var(--line)}
+.grid td input:focus,.grid td select:focus{outline:2px solid var(--accent);background:var(--bg)}
+.grid td input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.grid td.ck{text-align:center}
+.grid .c-rem{min-width:200px}.grid .c-list{min-width:150px}.grid .c-rep{min-width:150px}.grid .c-notes{min-width:220px}.grid .c-zone{min-width:130px}
+.grid .pen{background:none;border:0;font-size:16px;padding:2px 6px;border-radius:7px}
+.grid .pen:hover{background:var(--accent-soft)}
+.grid .cap{display:block;font-size:11px;color:var(--muted);padding:0 6px}
+.grid tr.done td.s3 input{text-decoration:line-through;color:var(--muted)}
+.grid .bad{border-color:var(--danger)!important}
+.grid .zb{width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:7px;padding:5px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.grid .zb:hover{border-color:var(--line)}
+.grid .more{font-size:11.5px;background:var(--accent-soft);color:var(--accent);border:0;border-radius:99px;padding:1px 7px;margin-left:4px;font-weight:700}
+.rowflex{display:flex;align-items:center}
 </style>
 </head>
 <body>
@@ -138,7 +167,7 @@ const YEARLY_MODES = [["SPECIFIC_DATE","On a date"],["NTH_WEEKDAY","On the first
 
 /* ------------------------------------------------------------------ state */
 const $ = s => document.querySelector(s);
-const S = { rows:[], settings:[], fileName:"", handle:null, dirty:false, view:{kind:"all"}, q:"", nextId:1, loaded:false, hadPrefix:true };
+const S = { mode:(lsGet("mytodo-web-mode")||"grid"), sort:{col:"",dir:1}, page:0, pageSize:parseInt(lsGet("mytodo-web-pagesize")||"100",10)||100, rows:[], settings:[], fileName:"", handle:null, dirty:false, view:{kind:"all"}, q:"", nextId:1, loaded:false, hadPrefix:true };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad = n => String(n).padStart(2,"0");
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("on"),2800)}
@@ -173,7 +202,8 @@ function loadCsvText(text, name, handle){
   const rawHead = grid[0].map(h=>h.trim());
   const hadPrefix = rawHead.filter(h=>h).every(h=>h.toLowerCase().startsWith(PREFIX));
   const names = rawHead.map(h=>h.toLowerCase().startsWith(PREFIX)?h.slice(PREFIX.length):h);
-  const idx = n => names.findIndex(x=>x.toLowerCase()===n.toLowerCase());
+  const lowNames=names.map(x=>x.toLowerCase()); const idxCache={};
+  const idx = n => { const k=n.toLowerCase(); return k in idxCache ? idxCache[k] : (idxCache[k]=lowNames.indexOf(k)); };
   if (idx("List")<0 || idx("Title")<0) throw new Error("This doesn't look like a My To-Do export — the first line must be the column names (mytodo_List, mytodo_Title, …). Export tasks from the app and open that file.");
   const firstSub = names.findIndex(n=>/^subtask\d*$/i.test(n)); // Subtask1
   const rows=[], settings=[], problems=[];
@@ -233,6 +263,8 @@ function nextReminder(r){
   const now=nowWall(); const up=list.find(x=>x>=now);
   return {text:up||list[list.length-1], upcoming:!!up};
 }
+const todayStr=()=>{const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+const isToday = r => remindersOf(r).some(x=>x.startsWith(todayStr()));
 function nowWall(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
 function repeatText(r){
   const t=(r.f.RecurrenceType||"NONE").toUpperCase(); if(t==="NONE") return "";
@@ -258,16 +290,19 @@ function visibleRows(){
       case "overdue": return isOverdueRow(r);
       case "done": return isDone(r);
       case "important": return truthy(r.f.Important) && !isDone(r);
-      case "myday": return truthy(r.f.MyDay) && !isDone(r);
+      case "myday": return isToday(r) && !isDone(r);
       case "list": return effList(r)===v.name && !isDone(r);
     }
     return true;
   });
   if(q) rows=rows.filter(r=>(r.f.Title+" "+r.f.Notes+" "+effList(r)+" "+r.subs.map(s=>s.t).join(" ")).toLowerCase().includes(q));
-  return rows.sort((a,b)=>{
-    const na=(nextReminder(a)||{}).text||"9999", nb=(nextReminder(b)||{}).text||"9999";
-    return na<nb?-1:na>nb?1:a.f.Title.localeCompare(b.f.Title);
-  });
+  // Sort keys are worked out once per row, not on every comparison — with thousands of
+  // tasks the comparison version re-read every reminder list millions of times.
+  const col=S.sort.col, dir=S.sort.dir;
+  if(!col && S.mode!=="cards") return rows;           // grid: file order, like a spreadsheet
+  const key=new Map(rows.map(r=>[r.id, col==="title"?r.f.Title.toLowerCase():col==="list"?effList(r).toLowerCase():(firstReminder(r)||"9999")]));
+  if(!col){ rows.forEach(r=>key.set(r.id,(nextReminder(r)||{}).text||"9999")); }
+  return rows.sort((a,b)=>{ const x=key.get(a.id), y=key.get(b.id); return x<y?-(col?dir:1):x>y?(col?dir:1):0; });
 }
 
 /* ------------------------------------------------------------------ rendering */
@@ -275,6 +310,7 @@ function setDirty(d){S.dirty=d;const s=$("#status");s.textContent=!S.loaded?"":(
 function enableButtons(){ $("#bSave").disabled=!S.loaded; $("#bCheck").disabled=!S.loaded; $("#bSave").textContent = S.handle ? "Save" : "Download CSV"; }
 function render(){
   const app=$("#app");
+  const oldGw=app.querySelector(".gridwrap"); render.scroll=oldGw?[oldGw.scrollLeft,oldGw.scrollTop]:null;
   if(!S.loaded){
     app.innerHTML=`<div class="drop" id="drop"><h2>Open your My To-Do CSV</h2>
       <p class="small">Drop the file here, or use <b>Open CSV…</b> above. Everything stays in your browser — nothing is uploaded.</p>
@@ -289,32 +325,43 @@ function render(){
     return;
   }
   const all=lists();
-  const cnt=k=>S.rows.filter(r=>{switch(k){case"all":return !isDone(r)&&!isOverdueRow(r);case"overdue":return isOverdueRow(r);case"done":return isDone(r);case"important":return truthy(r.f.Important)&&!isDone(r);case"myday":return truthy(r.f.MyDay)&&!isDone(r)}}).length;
+  const cnt=k=>S.rows.filter(r=>{switch(k){case"all":return !isDone(r)&&!isOverdueRow(r);case"overdue":return isOverdueRow(r);case"done":return isDone(r);case"important":return truthy(r.f.Important)&&!isDone(r);case"myday":return isToday(r)&&!isDone(r)}}).length;
   const navBtn=(kind,label,extra="",name="")=>{
     const on=S.view.kind===kind&&(kind!=="list"||S.view.name===name);
     return `<button class="${on?"on":""}" data-k="${kind}" data-n="${esc(name)}"><span>${extra}${esc(label)}</span><span class="n">${kind==="list"?(all.find(l=>l.name===name)||{}).open:cnt(kind)}</span></button>`;
   };
   const title = S.view.kind==="list"?S.view.name:({all:"All tasks",overdue:"Overdue",done:"Completed",important:"Important",myday:"My Day"})[S.view.kind];
-  const rows=visibleRows();
+  const allRows=visibleRows();
+  const pages=Math.max(1,Math.ceil(allRows.length/S.pageSize));
+  if(S.page>=pages) S.page=pages-1; if(S.page<0) S.page=0;
+  const rows=allRows.slice(S.page*S.pageSize,(S.page+1)*S.pageSize);
+  const pager=pagerHtml(allRows.length,pages);
   app.innerHTML=`<div class="wrap">
     <nav class="nav">
-      ${navBtn("all","All tasks")}${navBtn("myday","My Day")}${navBtn("important","Important")}${navBtn("overdue","⚠ Overdue")}${navBtn("done","Completed")}
+      ${navBtn("all","All tasks")}${navBtn("myday","☀ My Day")}${navBtn("important","Important")}${navBtn("overdue","⚠ Overdue")}${navBtn("done","Completed")}
       <h4>Lists</h4>
       ${all.filter(l=>!/^unassigned$/i.test(l.name)||l.all).map(l=>navBtn("list",l.name,`<span class="dot" style="background:${hue(l.name)}"></span>`,l.name)).join("")}
       <div class="row" style="padding:8px 6px 4px"><button class="btn sm" id="bAddList">+ List</button>${S.view.kind==="list"?`<button class="btn sm" id="bRenList">Rename</button><button class="btn sm danger" id="bDelList">Delete</button>`:""}</div>
     </nav>
     <section class="main">
-      <div class="hero"><h2>${esc(title)}</h2><span class="pill">${rows.length}</span><span class="grow"></span>
+      <div class="hero"><h2>${esc(title)}</h2><span class="pill">${allRows.length.toLocaleString()}</span><span class="grow"></span>
+        <div class="seg"><button id="mGrid" class="${S.mode==="grid"?"on":""}">▦ Grid</button><button id="mCards" class="${S.mode==="cards"?"on":""}">☰ Cards</button></div>
         <input class="search" id="q" placeholder="Search…" value="${esc(S.q)}"><button class="btn primary" id="bAdd">+ New task</button></div>
-      <div class="card">${rows.length?rows.map(taskHtml).join(""):`<div class="empty">Nothing here${S.q?" for that search":""}.</div>`}</div>
+      ${!rows.length?`<div class="card"><div class="empty">Nothing here${S.q?" for that search":""}.</div></div>`:(pager+(S.mode==="grid"?gridHtml(rows,all):`<div class="card">${rows.map(taskHtml).join("")}</div>`)+pager)}
       <p class="small" style="margin-top:10px">${esc(S.fileName)} · ${S.rows.length} tasks${S.settings.length?` · ${S.settings.length} app settings kept as they are`:""}</p>
     </section></div>`;
-  app.querySelectorAll(".nav button[data-k]").forEach(b=>b.onclick=()=>{S.view=b.dataset.k==="list"?{kind:"list",name:b.dataset.n}:{kind:b.dataset.k};render()});
-  $("#q").oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;render();const q=$("#q");q.focus();q.setSelectionRange(pos,pos)};
+  app.querySelectorAll(".nav button[data-k]").forEach(b=>b.onclick=()=>{S.view=b.dataset.k==="list"?{kind:"list",name:b.dataset.n}:{kind:b.dataset.k};S.page=0;render()});
+  $("#q").oninput=e=>{S.q=e.target.value;const pos=e.target.selectionStart;clearTimeout(render.qt);render.qt=setTimeout(()=>{S.page=0;render();const q=$("#q");q.focus();q.setSelectionRange(pos,pos)},200)};
   $("#bAdd").onclick=()=>taskDialog(null);
   $("#bAddList").onclick=listDialog;
   if($("#bRenList")) $("#bRenList").onclick=()=>renameListDialog(S.view.name);
   if($("#bDelList")) $("#bDelList").onclick=()=>deleteListDialog(S.view.name);
+  app.querySelectorAll("[data-pg]").forEach(b=>b.onclick=()=>{ S.page=Math.max(0,Math.min(pages-1,S.page+(+b.dataset.pg))); render(); window.scrollTo(0,0); });
+  app.querySelectorAll(".pgsize").forEach(sel=>sel.onchange=()=>{ S.pageSize=+sel.value; S.page=0; lsSet("mytodo-web-pagesize",String(S.pageSize)); render(); });
+  $("#mGrid").onclick=()=>{S.mode="grid";lsSet("mytodo-web-mode","grid");render()};
+  $("#mCards").onclick=()=>{S.mode="cards";lsSet("mytodo-web-mode","cards");render()};
+  if(S.mode==="grid"&&rows.length) bindGrid(app);
+  const gw=app.querySelector(".gridwrap"); if(gw&&render.scroll){gw.scrollLeft=render.scroll[0];gw.scrollTop=render.scroll[1]}
   app.querySelectorAll(".task").forEach(el=>{
     const id=+el.dataset.id;
     el.querySelector(".body").onclick=()=>taskDialog(id);
@@ -334,16 +381,113 @@ function taskHtml(r){
     truthy(r.f.SkipOverdue)&&isRepeat(r)?`<span class="chip flag">skips Overdue</span>`:"",
     truthy(r.f.SkipCompleted)&&isRepeat(r)?`<span class="chip flag">skips Completed</span>`:"",
     r.subs.length?`<span class="chip">☑ ${r.subs.filter(s=>s.d).length}/${r.subs.length}</span>`:"",
-    truthy(r.f.MyDay)?`<span class="chip">☀ My Day</span>`:""
+    ""
   ].join("");
   return `<div class="task ${done?"done":""}" data-id="${r.id}"><input type="checkbox" class="chk" ${done?"checked":""} aria-label="Done">
     <div class="body"><div class="t">${esc(r.f.Title)}</div><div class="meta">${chips}</div></div>
     <button class="star ${truthy(r.f.Important)?"on":""}" aria-label="Important">${truthy(r.f.Important)?"★":"☆"}</button></div>`;
 }
+function pagerHtml(total,pages){
+  if(total<=Math.min(...[50,100,250,500])) return "";
+  const from=S.page*S.pageSize+1, to=Math.min(total,(S.page+1)*S.pageSize);
+  return `<div class="row" style="margin:8px 0;justify-content:space-between"><span class="small">Rows ${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}</span>
+    <span class="row"><button class="btn sm" data-pg="-1" ${S.page<=0?"disabled":""}>‹ Prev</button><span class="small">Page ${S.page+1} / ${pages}</span><button class="btn sm" data-pg="1" ${S.page>=pages-1?"disabled":""}>Next ›</button>
+    <select class="pgsize in" style="width:auto;padding:4px 8px">${[50,100,250,500].map(n=>`<option value="${n}" ${n===S.pageSize?"selected":""}>${n} per page</option>`).join("")}</select></span></div>`;
+}
 function toggleDone(id,on){
   const r=rowById(id); r.f.Completed=on?"TRUE":"FALSE";
   if(!on && /^completed$/i.test(r.f.List.trim())){ r.f.List=r.f.HomeList||"Unassigned"; r.f.HomeList=""; }
   setDirty(true); render();
+}
+
+/* ------------------------------------------------------------------ grid (spreadsheet view) */
+function firstReminder(r){ const l=remindersOf(r).sort(); return l[0]||""; }
+function zoneShort(id){ return id? id.split("/").pop().replace(/_/g," ") : "Device"; }
+const REP_OPTS=[["NONE","Doesn't repeat"],["DAILY","Daily"],["WEEKLY","Weekly"],["MONTHLY","Monthly"],["YEARLY","Yearly"]];
+function gridHtml(rows,all){
+  const names=all.map(l=>l.name);
+  const arrow=c=>S.sort.col===c?(S.sort.dir>0?" ▲":" ▼"):"";
+  const list=rows;
+  return `<div class="gridwrap"><table class="grid"><thead><tr>
+    <th class="s1"></th><th class="s2">Done</th><th class="s3 sortable" data-sort="title">Title${arrow("title")}</th>
+    <th class="c-list sortable" data-sort="list">List${arrow("list")}</th><th class="c-rem sortable" data-sort="rem">Reminder${arrow("rem")}</th>
+    <th class="c-rep">Repeat</th><th>★</th><th title="Don't show in Overdue">No Overdue</th><th title="Don't show in Completed">No Completed</th>
+    <th class="c-zone">Time zone</th><th class="c-notes">Notes</th><th></th></tr></thead><tbody>${list.map(r=>gridRow(r,names)).join("")}</tbody></table></div>
+    <p class="small" style="margin-top:8px">Edit any cell directly. ✎ opens the full editor (repeat details, extra reminders, checklist). The Reminder cell edits the earliest reminder.</p>`;
+}
+function gridRow(r,names){
+  const f=r.f, rep=isRepeat(r), done=isDone(r), cur=effList(r), n=remindersOf(r).length;
+  const opts=names.includes(cur)?names:[...names,cur];
+  const ck=(k,on,dis)=>`<td class="ck"><input type="checkbox" data-c="${k}" ${on?"checked":""} ${dis?"disabled":""}></td>`;
+  return `<tr data-id="${r.id}" class="${done?"done":""}">
+    <td class="s1"><button class="pen" data-pen title="Open full editor">✎</button></td>
+    <td class="s2"><input type="checkbox" data-c="done" ${done?"checked":""} aria-label="Done" style="width:18px;height:18px;accent-color:var(--accent)"></td>
+    <td class="s3"><input type="text" data-t="Title" maxlength="${LIM.title}" value="${esc(f.Title)}" class="${f.Title.trim()?"":"bad"}"></td>
+    <td class="c-list"><select data-c="list">${opts.map(o=>`<option ${o===cur?"selected":""}>${esc(o)}</option>`).join("")}</select></td>
+    <td class="c-rem"><div class="rowflex"><input type="datetime-local" data-c="rem" value="${esc(toLocalInput(firstReminder(r)))}">${n>1?`<button class="more" data-pen title="${n} reminders — open the full editor">+${n-1}</button>`:""}</div></td>
+    <td class="c-rep"><select data-c="rep">${REP_OPTS.map(([v,l])=>`<option value="${v}" ${(rep?f.RecurrenceType.toUpperCase():"NONE")===v?"selected":""}>${l}</option>`).join("")}</select>${rep?`<span class="cap">${esc(repeatText(r))}</span>`:""}</td>
+    ${ck("imp",truthy(f.Important))}${ck("so",truthy(f.SkipOverdue)&&rep,!rep)}${ck("sc",truthy(f.SkipCompleted)&&rep,!rep)}
+    <td class="c-zone"><button class="zb" data-c="zone" title="${esc(f.ReminderZone||"Device time zone")}">🌐 ${esc(zoneShort(f.ReminderZone))}</button></td>
+    <td class="c-notes"><input type="text" data-t="Notes" maxlength="${LIM.notes}" value="${esc(f.Notes.replace(/\r?\n/g," ⏎ "))}" title="${esc(f.Notes)}"></td>
+    <td><button class="pen" data-del title="Delete task">🗑</button></td></tr>`;
+}
+function setRepeatType(r,t){
+  const f=r.f, first=firstReminder(r)||nowWall();
+  const m=/^(\d{4})-(\d\d)-(\d\d)/.exec(first); const d=m?new Date(+m[1],m[2]-1,+m[3]):new Date();
+  ["Interval","DailyMode","WeeklyDays","MonthlyMode","YearlyMode","DayOfMonth","Month","WeekOrdinal","DayOfWeek","RepeatEnds","RepeatEndDate","RepeatEndCount"].forEach(k=>f[k]="");
+  f.RecurrenceType=t; f.Interval="1";
+  if(t==="NONE"){ f.SkipOverdue=""; f.SkipCompleted=""; return; }
+  if(t==="DAILY") f.DailyMode="EVERY_N_DAYS";
+  if(t==="WEEKLY") f.WeeklyDays=DOW[(d.getDay()+6)%7][0];
+  if(t==="MONTHLY"){ f.MonthlyMode="DAY_OF_MONTH"; f.DayOfMonth=String(d.getDate()); }
+  if(t==="YEARLY"){ f.YearlyMode="SPECIFIC_DATE"; f.Month=String(d.getMonth()+1); f.DayOfMonth=String(d.getDate()); }
+}
+function bindGrid(app){
+  const tbl=app.querySelector("table.grid");
+  tbl.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{ const c=th.dataset.sort; if(S.sort.col===c) S.sort.dir*=-1; else S.sort={col:c,dir:1}; S.page=0; render(); });
+  tbl.addEventListener("click",e=>{
+    const tr=e.target.closest("tr[data-id]"); if(!tr) return; const id=+tr.dataset.id;
+    if(e.target.closest("[data-pen]")) return taskDialog(id);
+    if(e.target.closest("[data-del]")){ const r=rowById(id); if(confirm(`Delete “${r.f.Title}”?`)){ S.rows=S.rows.filter(x=>x.id!==id); setDirty(true); render(); } return; }
+    if(e.target.closest("[data-c=zone]")) return zoneDialog(id);
+  });
+  tbl.addEventListener("input",e=>{
+    const el=e.target; const tr=el.closest("tr[data-id]"); if(!tr||!el.dataset.t) return;
+    const r=rowById(+tr.dataset.id);
+    if(el.dataset.t==="Title"){ r.f.Title=el.value.replace(/[\r\n]+/g," "); el.classList.toggle("bad",!r.f.Title.trim()); }
+    else { if(el.value!==r.f.Notes.replace(/\r?\n/g," ⏎ ")) r.f.Notes=el.value.replace(/ ⏎ /g,"\n"); }
+    setDirty(true);
+  });
+  tbl.addEventListener("change",e=>{
+    const el=e.target; const tr=el.closest("tr[data-id]"); if(!tr) return;
+    const r=rowById(+tr.dataset.id), f=r.f, c=el.dataset.c; if(!c) return;
+    if(c==="done"){ toggleDone(r.id,el.checked); return; }
+    if(c==="list"){ if(isArchiveHeading(f.List)) f.HomeList=el.value; else f.List=el.value; }
+    else if(c==="rem"){
+      const rest=remindersOf(r).sort().slice(1); const v=fromLocalInput(el.value);
+      f.Reminders=[...new Set([...(v?[v]:[]),...rest])].sort().join(";");
+    }
+    else if(c==="rep"){ setRepeatType(r,el.value); }
+    else if(c==="imp") f.Important=el.checked?"TRUE":"FALSE";
+    else if(c==="md") f.MyDay=el.checked?"TRUE":"FALSE";
+    else if(c==="so") f.SkipOverdue=el.checked?"TRUE":"";
+    else if(c==="sc") f.SkipCompleted=el.checked?"TRUE":"";
+    setDirty(true);
+    if(c==="rem"||c==="so"||c==="sc") return;                 // nothing else on screen depends on these
+    if(c==="rep"){ tr.outerHTML=gridRow(r,lists().map(l=>l.name)); return; }   // just this row
+    render();
+  });
+}
+function zoneDialog(id){
+  const r=rowById(id); let cur=r.f.ReminderZone||"";
+  openDlg(`<div class="dh">Reminder time zone</div><div class="db"><p class="hint">For “${esc(r.f.Title)}”. Reminder times are clock times in this zone.</p>
+    <input class="in" id="zq" placeholder="Search city, country or zone (e.g. London, New York, Paris, Sydney, GMT)"><div class="zlist" id="zl"></div></div>
+    <div class="df"><button class="btn" id="zd">Use device zone</button><button class="btn" id="x">Cancel</button></div>`);
+  const draw=t=>{ const res=searchZones(t); $("#zl").innerHTML=res.length?res.map(z=>`<button data-z="${esc(z.id)}" class="${z.id===cur?"sel":""}">${esc((z.label?z.label+" — ":"")+zoneDescription(z.id))}</button>`).join(""):`<div class="hint" style="padding:8px">No zone matches that.</div>`;
+    dlg.querySelectorAll("#zl button").forEach(b=>b.onclick=()=>{ r.f.ReminderZone=b.dataset.z; setDirty(true); closeDlg(); render(); }); };
+  $("#zq").oninput=e=>draw(e.target.value); draw(""); $("#zq").focus();
+  $("#zd").onclick=()=>{ r.f.ReminderZone=""; setDirty(true); closeDlg(); render(); };
+  $("#x").onclick=closeDlg;
 }
 
 /* ------------------------------------------------------------------ dialogs */
@@ -399,9 +543,7 @@ function taskDialog(id, newListName){
     <label class="f">Title</label><input class="in" id="t" maxlength="${LIM.title}" value="${esc(f.Title)}">
     <label class="f">Notes</label><textarea class="in" id="n" maxlength="${LIM.notes}">${esc(f.Notes)}</textarea>
     <div class="row"><div style="flex:1;min-width:180px"><label class="f">List</label><select class="in" id="l">${names.map(n=>`<option ${n===effList(row)?"selected":""}>${esc(n)}</option>`).join("")}<option value="__new">+ New list…</option></select><input class="in" id="ln" placeholder="New list name" maxlength="60" style="display:none;margin-top:6px"></div></div>
-    <div class="cb"><input type="checkbox" id="done" ${truthy(f.Completed)?"checked":""}><label for="done">Completed</label></div>
     <div class="cb"><input type="checkbox" id="imp" ${truthy(f.Important)?"checked":""}><label for="imp">Important ★</label></div>
-    <div class="cb"><input type="checkbox" id="md" ${truthy(f.MyDay)?"checked":""}><label for="md">Show in My Day</label></div>
 
     <label class="f">Reminders</label><div id="rems"></div>
     <button class="btn sm" id="addRem">+ Add reminder</button>
@@ -488,8 +630,6 @@ function taskDialog(id, newListName){
   }
   q("#rt").onchange=()=>{f.RecurrenceType=q("#rt").value; drawRepeat()};
   drawRepeat();
-  const endVis=()=>{ const e=q("#re").value; q("#red").style.display=e==="ON_DATE"?"block":"none"; q("#rec").style.display=e==="AFTER_OCCURRENCES"?"block":"none"; q("#rec").placeholder="times"; };
-  q("#re").onchange=endVis; endVis();
   /* subtasks */
   function drawSubs(){
     q("#subs").innerHTML=subs.map((s,i)=>`<div class="sub"><input type="checkbox" class="chk" data-sd="${i}" ${s.d?"checked":""}><input class="in" data-st="${i}" maxlength="${LIM.subTitle}" value="${esc(s.t)}"><button class="btn sm danger" data-sr="${i}">✕</button></div>`).join("");
@@ -511,8 +651,8 @@ function taskDialog(id, newListName){
     const t=q("#rt").value, rep=t!=="NONE";
     const out={...row.f};
     out.Title=title; out.Notes=q("#n").value;
-    const done=q("#done").checked; out.Completed=done?"TRUE":"FALSE";
-    out.Important=q("#imp").checked?"TRUE":"FALSE"; out.MyDay=q("#md").checked?"TRUE":"FALSE";
+    const done=truthy(row.f.Completed);
+    out.Important=q("#imp").checked?"TRUE":"FALSE";
     // list: archived rows keep their heading and update HomeList
     if(isArchiveHeading(row.f.List) && !(/^completed$/i.test(row.f.List) && !done)){ out.HomeList=listName; }
     else { out.List=listName; out.HomeList=""; }
@@ -773,8 +913,6 @@ try{ ALLZ=Intl.supportedValuesOf("timeZone").filter(z=>z.includes("/")&&!z.start
 ALLZ.sort();
 const cityLabel = c => { const short=c.city.length>24?c.city.split(" ")[0]:c.city; const cw=c.country.split(" "); return short+", "+cw.slice(0,/^United/.test(c.country)?2:1).join(" "); };
 function zoneDescription(id){
-  if(id==="GMT") return "GMT · Greenwich Mean Time (UTC+00:00)";
-  if(id==="UTC") return "UTC · Coordinated Universal Time (UTC+00:00)";
   try{
     const now=new Date();
     const name=new Intl.DateTimeFormat("en",{timeZone:id,timeZoneName:"long"}).formatToParts(now).find(p=>p.type==="timeZoneName").value;
