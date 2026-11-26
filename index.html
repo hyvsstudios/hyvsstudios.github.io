@@ -118,7 +118,14 @@ table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width
 .grid td input[type=text],.grid td input[type=datetime-local],.grid td select{width:100%;border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:7px}
 .grid td input[type=text]:hover,.grid td input[type=datetime-local]:hover,.grid td select:hover{border-color:var(--line)}
 .grid td input:focus,.grid td select:focus{outline:2px solid var(--accent);background:var(--bg)}
-.grid td input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+.grid td input[type=checkbox]{-webkit-appearance:none;appearance:none;box-sizing:border-box;width:18px;height:18px;margin:0;border:2px solid var(--muted);border-radius:4px;background:transparent;position:relative;cursor:pointer;vertical-align:middle;flex:none}
+.grid td input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+.grid td input[type=checkbox]:checked::after{content:"";position:absolute;left:4px;top:0;width:4px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.grid td input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid tr.frow td{position:sticky;top:33px;z-index:3;background:var(--chip);border-bottom:1px solid var(--line);padding:4px 6px}
+.grid tr.frow td.s1,.grid tr.frow td.s2,.grid tr.frow td.s3{z-index:5}
+.grid tr.frow input,.grid tr.frow select{width:100%;min-width:64px;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text,inherit)}
+.grid tr.frow input.on,.grid tr.frow select.on{border-color:var(--accent);background:var(--accent-soft)}
 .grid td.ck{text-align:center}
 .grid .c-rem{min-width:200px}.grid .c-list{min-width:150px}.grid .c-rep{min-width:150px}.grid .c-notes{min-width:220px}.grid .c-zone{min-width:130px}
 .grid .pen{background:none;border:0;font-size:16px;padding:2px 6px;border-radius:7px}
@@ -167,7 +174,7 @@ const YEARLY_MODES = [["SPECIFIC_DATE","On a date"],["NTH_WEEKDAY","On the first
 
 /* ------------------------------------------------------------------ state */
 const $ = s => document.querySelector(s);
-const S = { mode:(lsGet("mytodo-web-mode")||"grid"), sort:{col:"",dir:1}, page:0, pageSize:parseInt(lsGet("mytodo-web-pagesize")||"100",10)||100, rows:[], settings:[], fileName:"", handle:null, dirty:false, view:{kind:"all"}, q:"", nextId:1, loaded:false, hadPrefix:true };
+const S = { mode:(lsGet("mytodo-web-mode")||"grid"), sort:{col:"",dir:1}, page:0, pageSize:parseInt(lsGet("mytodo-web-pagesize")||"100",10)||100, rows:[], settings:[], fileName:"", handle:null, dirty:false, view:{kind:"all"}, q:"", filters:{}, nextId:1, loaded:false, hadPrefix:true };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad = n => String(n).padStart(2,"0");
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove("on"),2800)}
@@ -221,7 +228,7 @@ function loadCsvText(text, name, handle){
     rows.push({ id:S.nextId++, f, subs });
   }
   S.rows=rows; S.settings=settings; S.fileName=name||"mytodo.csv"; S.handle=handle||null; S.loaded=true; S.hadPrefix=hadPrefix;
-  S.view={kind:"all"}; S.q=""; setDirty(false);
+  S.view={kind:"all"}; S.q=""; S.filters={}; setDirty(false);
   render(); enableButtons();
   toast(`Opened ${rows.length} task${rows.length===1?"":"s"}${settings.length?` and ${settings.length} app settings`:""}.`);
   if(!hadPrefix) toast("Heads up: column names had no “mytodo_” prefix — it will be added when you save.");
@@ -295,6 +302,23 @@ function visibleRows(){
     }
     return true;
   });
+  const F=S.filters;
+  if(S.mode==="grid" && Object.values(F).some(Boolean)){
+    const has=(x,y)=>String(x||"").toLowerCase().includes(String(y).toLowerCase());
+    const yn=(val,flag)=>flag===""||(flag==="y")===!!val;
+    rows=rows.filter(r=>{
+      if(F.title&&!has(r.f.Title,F.title)) return false;
+      if(F.notes&&!has(r.f.Notes,F.notes)) return false;
+      if(F.list&&effList(r)!==F.list) return false;
+      if(F.rep){ const t=isRepeat(r)?r.f.RecurrenceType.toUpperCase():"NONE"; if(t!==F.rep) return false; }
+      if(F.rem){ const n=remindersOf(r).length; if(F.rem==="has"?n===0:n>0) return false; }
+      if(F.zone){ const z=r.f.ReminderZone||""; if(F.zone==="device"?z!=="":z===""||!has(z,F.zone==="custom"?"":F.zone)) return false; }
+      if(F.imp&&!yn(truthy(r.f.Important),F.imp)) return false;
+      if(F.so&&!yn(truthy(r.f.SkipOverdue),F.so)) return false;
+      if(F.sc&&!yn(truthy(r.f.SkipCompleted),F.sc)) return false;
+      return true;
+    });
+  }
   if(q) rows=rows.filter(r=>(r.f.Title+" "+r.f.Notes+" "+effList(r)+" "+r.subs.map(s=>s.t).join(" ")).toLowerCase().includes(q));
   // Sort keys are worked out once per row, not on every comparison — with thousands of
   // tasks the comparison version re-read every reminder list millions of times.
@@ -347,7 +371,7 @@ function render(){
       <div class="hero"><h2>${esc(title)}</h2><span class="pill">${allRows.length.toLocaleString()}</span><span class="grow"></span>
         <div class="seg"><button id="mGrid" class="${S.mode==="grid"?"on":""}">▦ Grid</button><button id="mCards" class="${S.mode==="cards"?"on":""}">☰ Cards</button></div>
         <input class="search" id="q" placeholder="Search…" value="${esc(S.q)}"><button class="btn primary" id="bAdd">+ New task</button></div>
-      ${!rows.length?`<div class="card"><div class="empty">Nothing here${S.q?" for that search":""}.</div></div>`:(pager+(S.mode==="grid"?gridHtml(rows,all):`<div class="card">${rows.map(taskHtml).join("")}</div>`)+pager)}
+      ${!rows.length&&!(S.mode==="grid"&&Object.values(S.filters).some(Boolean))?`<div class="card"><div class="empty">Nothing here${S.q?" for that search":""}.</div></div>`:(pager+(S.mode==="grid"?gridHtml(rows,all):`<div class="card">${rows.map(taskHtml).join("")}</div>`)+pager)}
       <p class="small" style="margin-top:10px">${esc(S.fileName)} · ${S.rows.length} tasks${S.settings.length?` · ${S.settings.length} app settings kept as they are`:""}</p>
     </section></div>`;
   app.querySelectorAll(".nav button[data-k]").forEach(b=>b.onclick=()=>{S.view=b.dataset.k==="list"?{kind:"list",name:b.dataset.n}:{kind:b.dataset.k};S.page=0;render()});
@@ -378,8 +402,8 @@ function taskHtml(r){
     nx?`<span class="chip ${over?"over":""}">${over?"⚠ ":"⏰ "}${esc(fmtWhen(nx.text))}</span>`:(done?"":`<span class="chip over">⚠ no reminder</span>`),
     rep?`<span class="chip">↻ ${esc(rep)}</span>`:"",
     r.f.ReminderZone?`<span class="chip">🌐 ${esc(r.f.ReminderZone)}</span>`:"",
-    truthy(r.f.SkipOverdue)&&isRepeat(r)?`<span class="chip flag">skips Overdue</span>`:"",
-    truthy(r.f.SkipCompleted)&&isRepeat(r)?`<span class="chip flag">skips Completed</span>`:"",
+    truthy(r.f.SkipOverdue)?`<span class="chip flag">skips Overdue</span>`:"",
+    truthy(r.f.SkipCompleted)?`<span class="chip flag">skips Completed</span>`:"",
     r.subs.length?`<span class="chip">☑ ${r.subs.filter(s=>s.d).length}/${r.subs.length}</span>`:"",
     ""
   ].join("");
@@ -412,8 +436,18 @@ function gridHtml(rows,all){
     <th class="s1"></th><th class="s2">Done</th><th class="s3 sortable" data-sort="title">Title${arrow("title")}</th>
     <th class="c-list sortable" data-sort="list">List${arrow("list")}</th><th class="c-rem sortable" data-sort="rem">Reminder${arrow("rem")}</th>
     <th class="c-rep">Repeat</th><th>★</th><th title="Don't show in Overdue">No Overdue</th><th title="Don't show in Completed">No Completed</th>
-    <th class="c-zone">Time zone</th><th class="c-notes">Notes</th><th></th></tr></thead><tbody>${list.map(r=>gridRow(r,names)).join("")}</tbody></table></div>
+    <th class="c-zone">Time zone</th><th class="c-notes">Notes</th><th></th></tr>${filterRow(names)}</thead><tbody>${list.map(r=>gridRow(r,names)).join("")}</tbody></table></div>
     <p class="small" style="margin-top:8px">Edit any cell directly. ✎ opens the full editor (repeat details, extra reminders, checklist). The Reminder cell edits the earliest reminder.</p>`;
+}
+function filterRow(names){
+  const F=S.filters, any=Object.values(F).some(Boolean);
+  const sel=(k,opts)=>`<select data-f="${k}" class="${F[k]?"on":""}" aria-label="Filter ${k}"><option value="">All</option>${opts.map(([v,l])=>`<option value="${esc(v)}" ${F[k]===v?"selected":""}>${esc(l)}</option>`).join("")}</select>`;
+  const txt=(k,ph)=>`<input type="text" data-f="${k}" class="${F[k]?"on":""}" placeholder="${ph}" value="${esc(F[k]||"")}">`;
+  const yn=k=>sel(k,[["y","Yes"],["n","No"]]);
+  return `<tr class="frow"><td class="s1">${any?`<button class="pen" data-clearf title="Clear all filters">✕</button>`:""}</td><td class="s2"></td><td class="s3">${txt("title","Filter title…")}</td>
+    <td class="c-list">${sel("list",names.map(n=>[n,n]))}</td><td class="c-rem">${sel("rem",[["has","Has a reminder"],["none","No reminder"]])}</td>
+    <td class="c-rep">${sel("rep",REP_OPTS)}</td><td>${yn("imp")}</td><td>${yn("so")}</td><td>${yn("sc")}</td>
+    <td class="c-zone">${sel("zone",[["device","Device default"],["custom","Custom zone"]])}</td><td class="c-notes">${txt("notes","Filter notes…")}</td><td></td></tr>`;
 }
 function gridRow(r,names){
   const f=r.f, rep=isRepeat(r), done=isDone(r), cur=effList(r), n=remindersOf(r).length;
@@ -421,12 +455,12 @@ function gridRow(r,names){
   const ck=(k,on,dis)=>`<td class="ck"><input type="checkbox" data-c="${k}" ${on?"checked":""} ${dis?"disabled":""}></td>`;
   return `<tr data-id="${r.id}" class="${done?"done":""}">
     <td class="s1"><button class="pen" data-pen title="Open full editor">✎</button></td>
-    <td class="s2"><input type="checkbox" data-c="done" ${done?"checked":""} aria-label="Done" style="width:18px;height:18px;accent-color:var(--accent)"></td>
+    <td class="s2"><input type="checkbox" data-c="done" ${done?"checked":""} aria-label="Done"></td>
     <td class="s3"><input type="text" data-t="Title" maxlength="${LIM.title}" value="${esc(f.Title)}" class="${f.Title.trim()?"":"bad"}"></td>
     <td class="c-list"><select data-c="list">${opts.map(o=>`<option ${o===cur?"selected":""}>${esc(o)}</option>`).join("")}</select></td>
     <td class="c-rem"><div class="rowflex"><input type="datetime-local" data-c="rem" value="${esc(toLocalInput(firstReminder(r)))}">${n>1?`<button class="more" data-pen title="${n} reminders — open the full editor">+${n-1}</button>`:""}</div></td>
     <td class="c-rep"><select data-c="rep">${REP_OPTS.map(([v,l])=>`<option value="${v}" ${(rep?f.RecurrenceType.toUpperCase():"NONE")===v?"selected":""}>${l}</option>`).join("")}</select>${rep?`<span class="cap">${esc(repeatText(r))}</span>`:""}</td>
-    ${ck("imp",truthy(f.Important))}${ck("so",truthy(f.SkipOverdue)&&rep,!rep)}${ck("sc",truthy(f.SkipCompleted)&&rep,!rep)}
+    ${ck("imp",truthy(f.Important))}${ck("so",truthy(f.SkipOverdue))}${ck("sc",truthy(f.SkipCompleted))}
     <td class="c-zone"><button class="zb" data-c="zone" title="${esc(f.ReminderZone||"Device time zone")}">🌐 ${esc(zoneShort(f.ReminderZone))}</button></td>
     <td class="c-notes"><input type="text" data-t="Notes" maxlength="${LIM.notes}" value="${esc(f.Notes.replace(/\r?\n/g," ⏎ "))}" title="${esc(f.Notes)}"></td>
     <td><button class="pen" data-del title="Delete task">🗑</button></td></tr>`;
@@ -436,7 +470,7 @@ function setRepeatType(r,t){
   const m=/^(\d{4})-(\d\d)-(\d\d)/.exec(first); const d=m?new Date(+m[1],m[2]-1,+m[3]):new Date();
   ["Interval","DailyMode","WeeklyDays","MonthlyMode","YearlyMode","DayOfMonth","Month","WeekOrdinal","DayOfWeek","RepeatEnds","RepeatEndDate","RepeatEndCount"].forEach(k=>f[k]="");
   f.RecurrenceType=t; f.Interval="1";
-  if(t==="NONE"){ f.SkipOverdue=""; f.SkipCompleted=""; return; }
+  if(t==="NONE") return;
   if(t==="DAILY") f.DailyMode="EVERY_N_DAYS";
   if(t==="WEEKLY") f.WeeklyDays=DOW[(d.getDay()+6)%7][0];
   if(t==="MONTHLY"){ f.MonthlyMode="DAY_OF_MONTH"; f.DayOfMonth=String(d.getDate()); }
@@ -444,6 +478,10 @@ function setRepeatType(r,t){
 }
 function bindGrid(app){
   const tbl=app.querySelector("table.grid");
+  const applyF=(k,v,keep)=>{ if(v) S.filters[k]=v; else delete S.filters[k]; S.page=0; render(); if(keep){ const el=document.querySelector(`[data-f="${k}"]`); if(el){ el.focus(); try{ el.setSelectionRange(keep,keep) }catch(e){} } } };
+  tbl.querySelectorAll("select[data-f]").forEach(el=>el.onchange=()=>applyF(el.dataset.f,el.value));
+  tbl.querySelectorAll("input[data-f]").forEach(el=>el.oninput=()=>{ clearTimeout(bindGrid.ft); const k=el.dataset.f,v=el.value,pos=el.selectionStart||v.length; bindGrid.ft=setTimeout(()=>applyF(k,v,pos),250); });
+  const cf=tbl.querySelector("[data-clearf]"); if(cf) cf.onclick=()=>{ S.filters={}; S.page=0; render(); };
   tbl.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{ const c=th.dataset.sort; if(S.sort.col===c) S.sort.dir*=-1; else S.sort={col:c,dir:1}; S.page=0; render(); });
   tbl.addEventListener("click",e=>{
     const tr=e.target.closest("tr[data-id]"); if(!tr) return; const id=+tr.dataset.id;
@@ -564,7 +602,7 @@ function taskDialog(id, newListName){
     </div>
     <div class="cb" style="margin-top:14px"><input type="checkbox" id="so" ${truthy(f.SkipOverdue)?"checked":""}><label for="so">Don't show in Overdue</label></div>
     <div class="cb"><input type="checkbox" id="sc" ${truthy(f.SkipCompleted)?"checked":""}><label for="sc">Don't show in Completed</label></div>
-    <p class="hint" id="skipHint">These two apply once the task repeats: a missed occurrence is dropped quietly instead of piling up in Overdue, and ticking an occurrence leaves no entry in Completed.</p>
+    <p class="hint" id="skipHint">These two matter for repeating tasks (you can tick them in advance): a missed occurrence is dropped quietly instead of piling up in Overdue, and ticking an occurrence leaves no entry in Completed.</p>
 
     <label class="f">Checklist</label><div id="subs"></div><button class="btn sm" id="addSub">+ Add item</button>
     ${sound?`<label class="f">Reminder sound</label><div class="row"><span class="chip" style="max-width:100%;overflow:hidden;text-overflow:ellipsis">${esc(sound==="silent"?"Silent":"Custom tone (set on the phone)")}</span><label class="cb" style="margin:0"><input type="checkbox" id="keepSound" checked> keep</label></div><p class="hint">Tones live on the phone, so they can't be chosen here — they're kept unless you untick this (the task then follows the app's default tone).</p>`:""}
@@ -602,7 +640,7 @@ function taskDialog(id, newListName){
     q("#unit").textContent={DAILY:"day(s)",WEEKLY:"week(s)",MONTHLY:"month(s)",YEARLY:"year(s)"}[t]||"";
     if(rep){q("#iv").max=MAXINT[t]}
     q("#skipHint").style.display=rep?"none":"block";
-    q("#so").disabled=!rep; q("#sc").disabled=!rep;
+    
     const dm=(f.DailyMode||"EVERY_N_DAYS"), ws=new Set((f.WeeklyDays||"").split(",").map(x=>x.trim().toUpperCase()).filter(Boolean));
     let h="";
     if(t==="DAILY") h=`<select class="in" id="dm" style="margin-top:8px">${optSel([["EVERY_N_DAYS","Every N days"],["EVERY_WEEKDAY","Every weekday (Mon–Fri)"]],dm)}</select>`;
@@ -676,8 +714,8 @@ function taskDialog(id, newListName){
       if(e==="ON_DATE"){ if(!q("#red").value) return toast("Choose the date the repeat ends."); out.RepeatEnds=e; out.RepeatEndDate=q("#red").value; }
       if(e==="AFTER_OCCURRENCES"){ const c=parseInt(q("#rec").value,10); if(!(c>=1&&c<=LIM.endCount)) return toast(`Enter how many times (1–${LIM.endCount}).`); out.RepeatEnds=e; out.RepeatEndCount=String(c); }
     }
-    out.SkipOverdue = rep&&q("#so").checked?"TRUE":"";
-    out.SkipCompleted = rep&&q("#sc").checked?"TRUE":"";
+    out.SkipOverdue = q("#so").checked?"TRUE":"";
+    out.SkipCompleted = q("#sc").checked?"TRUE":"";
     if(q("#keepSound")&&!q("#keepSound").checked) out.ReminderSound="";
     const cleanSubs=subs.map(s=>({t:s.t.replace(/[\r\n]+/g," ").trim(),d:s.d})).filter(s=>s.t);
     row.f=out; row.subs=cleanSubs;
@@ -950,7 +988,7 @@ $("#fileIn").onchange=e=>{const f=e.target.files[0]; e.target.value=""; if(f) re
 function confirmDiscard(){ return !S.dirty || confirm("You have unsaved changes. Discard them?"); }
 function newFile(){
   if(!confirmDiscard()) return;
-  S.rows=[]; S.settings=[]; S.fileName="mytodo.csv"; S.handle=null; S.loaded=true; S.view={kind:"all"}; S.q="";
+  S.rows=[]; S.settings=[]; S.fileName="mytodo.csv"; S.handle=null; S.loaded=true; S.view={kind:"all"}; S.q=""; S.filters={};
   setDirty(false); render(); enableButtons(); taskDialog(null,"My list");
 }
 async function save(){
