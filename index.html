@@ -123,11 +123,14 @@ table.grid{border-collapse:separate;border-spacing:0;width:max-content;min-width
 .grid td input[type=checkbox]:checked::after{content:"";position:absolute;left:4px;top:0;width:4px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .grid td input[type=checkbox]:indeterminate{background:var(--accent);border-color:var(--accent)}
 .grid td input[type=checkbox]:indeterminate::after{content:"";position:absolute;left:2px;top:6px;width:10px;height:2px;background:#fff}
+.grid .allcell{display:flex;gap:8px;align-items:center;justify-content:center}
+.grid .allcell select{width:auto;min-width:64px}
+.grid .allbox{display:inline-flex;gap:4px;align-items:center;font-size:11.5px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.4px}
 .grid td input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .grid tr.frow td{position:sticky;top:33px;z-index:3;background:var(--chip);border-bottom:1px solid var(--line);padding:4px 6px}
 .grid tr.frow td.s1,.grid tr.frow td.s2,.grid tr.frow td.s3{z-index:5}
-.grid tr.frow input,.grid tr.frow select{width:100%;min-width:64px;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text,inherit)}
-.grid tr.frow input.on,.grid tr.frow select.on{border-color:var(--accent);background:var(--accent-soft)}
+.grid tr.frow input[type=text],.grid tr.frow select{width:100%;min-width:64px;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--text,inherit)}
+.grid tr.frow input[type=text].on,.grid tr.frow select.on{border-color:var(--accent);background:var(--accent-soft)}
 .grid td.ck{text-align:center}
 .grid .c-rem{min-width:200px}.grid .c-list{min-width:150px}.grid .c-rep{min-width:150px}.grid .c-notes{min-width:220px}.grid .c-zone{min-width:130px}
 .grid .pen{background:none;border:0;font-size:16px;padding:2px 6px;border-radius:7px}
@@ -445,7 +448,7 @@ function filterRow(names){
   const F=S.filters, any=Object.values(F).some(Boolean);
   const sel=(k,opts)=>`<select data-f="${k}" class="${F[k]?"on":""}" aria-label="Filter ${k}"><option value="">All</option>${opts.map(([v,l])=>`<option value="${esc(v)}" ${F[k]===v?"selected":""}>${esc(l)}</option>`).join("")}</select>`;
   const txt=(k,ph)=>`<input type="text" data-f="${k}" class="${F[k]?"on":""}" placeholder="${ph}" value="${esc(F[k]||"")}">`;
-  const yn=k=>`<div style="display:flex;gap:6px;align-items:center">${sel(k,[["y","Yes"],["n","No"]])}<input type="checkbox" data-all="${k}" title="Tick / untick this for ALL tasks currently shown (every page)" aria-label="Tick all"></div>`;
+  const yn=k=>`<div class="allcell">${sel(k,[["y","Yes"],["n","No"]])}<label class="allbox" title="Tick / untick this for ALL tasks currently shown (every page)"><input type="checkbox" data-all="${k}" aria-label="Tick all"><span>All</span></label></div>`;
   return `<tr class="frow"><td class="s1">${any?`<button class="pen" data-clearf title="Clear all filters">✕</button>`:""}</td><td class="s2"></td><td class="s3">${txt("title","Filter title…")}</td>
     <td class="c-list">${sel("list",names.map(n=>[n,n]))}</td><td class="c-rem">${sel("rem",[["has","Has a reminder"],["none","No reminder"]])}</td>
     <td class="c-rep">${sel("rep",REP_OPTS)}</td><td>${yn("imp")}</td><td>${yn("so")}</td><td>${yn("sc")}</td>
